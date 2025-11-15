@@ -1,0 +1,14 @@
+dist/
+dist-*/
+*.hi
+*.o
+*.hp
+*.prof
+*.aux
+*.eventlog
+.ghc.environment.*
+.hie/
+/.stack-work/
+/cabal.project.local
+/cabal.project.local~
+/.vscode/

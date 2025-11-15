@@ -1,0 +1,67 @@
+cabal-version:      3.0
+
+name:               aws-eventbridge-cron
+version:            0.1.0.0
+synopsis:           Utilities for working with AWS EventBridge cron expressions
+description:        This package provides helpers for constructing and validating AWS EventBridge cron and rate expressions.
+category:           AWS, Cloud, Scheduling
+homepage:           https://github.com/your-user/aws-eventbridge-cron
+bug-reports:        https://github.com/your-user/aws-eventbridge-cron/issues
+author:             Kushagra Gupta
+maintainer:         Kushagra Gupta <khushiitrans@gmail.com>
+license:            BSD-3-Clause
+license-file:       LICENSE
+build-type:         Simple
+tested-with:        GHC == 9.6.* || == 9.8.* || == 9.10.*
+
+extra-doc-files:
+  README.md
+  CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/your-user/aws-eventbridge-cron
+
+library
+  exposed-modules:
+      AWS.EventBridge.Cron
+    , AWS.EventBridge.DayOfMonth
+    , AWS.EventBridge.Hours
+    , AWS.EventBridge.Minutes
+    , AWS.EventBridge.Months
+    , AWS.EventBridge.Years
+  hs-source-dirs:
+      src
+  default-language: GHC2021
+  ghc-options:
+      -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
+  build-depends:
+      base >=4.14 && <5
+    , containers
+    , megaparsec
+    , text
+    , time
+
+test-suite aws-eventbridge-cron-test
+  type: exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is: Main.hs
+  other-modules:
+      AWS.EventBridge.DayOfMonthSpec
+    , AWS.EventBridge.HoursSpec
+    , AWS.EventBridge.MinutesSpec
+    , AWS.EventBridge.MonthsSpec
+    , AWS.EventBridge.YearsSpec
+    , TestSupport
+  default-language: GHC2021
+  ghc-options: -Wall
+  build-depends:
+      aws-eventbridge-cron
+    , base >=4.14 && <5
+    , containers
+    , QuickCheck >=2.14 && <2.16
+    , tasty >=1.4 && <1.6
+    , tasty-hunit >=0.10 && <0.11
+    , tasty-quickcheck >=0.10 && <0.11
+    , text
+    , time
