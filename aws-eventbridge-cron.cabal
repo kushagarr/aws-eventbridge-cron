@@ -26,6 +26,7 @@ library
   exposed-modules:
       AWS.EventBridge.Cron
     , AWS.EventBridge.DayOfMonth
+    , AWS.EventBridge.DayOfWeek
     , AWS.EventBridge.Hours
     , AWS.EventBridge.Minutes
     , AWS.EventBridge.Months
@@ -48,6 +49,7 @@ test-suite aws-eventbridge-cron-test
   main-is: Main.hs
   other-modules:
       AWS.EventBridge.DayOfMonthSpec
+    , AWS.EventBridge.DayOfWeekSpec
     , AWS.EventBridge.HoursSpec
     , AWS.EventBridge.MinutesSpec
     , AWS.EventBridge.MonthsSpec
