@@ -1,17 +1,35 @@
 # aws-eventbridge-cron
 
-Utilities for working with AWS EventBridge cron and rate expressions.
+Utilities for exploring and validating AWS EventBridge cron expressions.
 
 Status: early draft. API may change prior to 1.0.
 
+## What’s here
+
+- Parsers for individual cron fields used by EventBridge (minutes, hours, day-of-month,
+	months, years) with evaluation helpers for valid value lists.
+- Property-based test suite that exercises nominal and edge-case inputs drawn from
+	the [AWS EventBridge cron expression documentation][aws-docs].
+- Library code compiled with GHC2021 and warnings enabled by default.
+
 ## Usage
 
-```haskell
-import AWS.EventBridge.Cron
+The library currently exposes low-level modules for each cron field. For example, you
+can parse and evaluate month expressions like this:
 
-expr1 = render (cron "0 12 * * ? *")      -- cron(0 12 * * ? *)
-expr2 = render (rateMinutes 5)             -- rate(5 minutes)
+```haskell
+import AWS.EventBridge.Months (evaluateMonthT, parseMonthsText)
+
+eitherExpr :: Either String [Int]
+eitherExpr = do
+	expr <- parseMonthsText "Jan,4,Aug"
+	evaluateMonthT expr
+-- Right [1,4,8]
 ```
+
+Similar helpers exist for minutes (`AWS.EventBridge.Minutes`), hours (`AWS.EventBridge.Hours`),
+day-of-month (`AWS.EventBridge.DayOfMonth`), and years (`AWS.EventBridge.Years`). A higher-level
+`Cron` module will follow once the individual field modules stabilise.
 
 ## Developing
 
@@ -24,6 +42,13 @@ cabal repl
 cabal test
 ```
 
+## Contributing
+
+Bug reports, suggestions, and pull requests are welcome. Please file issues or share ideas
+before large-scale changes to ensure we keep the API coherent.
+
 ## License
 
 BSD-3-Clause
+
+[aws-docs]: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html#eb-cron-expressions
