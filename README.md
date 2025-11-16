@@ -10,6 +10,8 @@ Status: early draft. API may change prior to 1.0.
 	day-of-week, months, years) with evaluation helpers for valid value lists.
 - Parser and evaluator for EventBridge rate expressions that produce validated
 	`NominalDiffTime` durations.
+- Parser for one-time `at(...)` expressions that yields validated `UTCTime`
+	timestamps.
 - Property-based test suite that exercises nominal and edge-case inputs drawn from
 	the [AWS EventBridge cron expression documentation][aws-docs].
 - Library code compiled with GHC2021 and warnings enabled by default.
@@ -31,8 +33,9 @@ eitherExpr = do
 
 Similar helpers exist for minutes (`AWS.EventBridge.Minutes`), hours (`AWS.EventBridge.Hours`),
 day-of-month (`AWS.EventBridge.DayOfMonth`), day-of-week (`AWS.EventBridge.DayOfWeek`), years
-(`AWS.EventBridge.Years`), and rate expressions (`AWS.EventBridge.Rate`). A higher-level `Cron`
-module will follow once the individual field modules stabilise.
+(`AWS.EventBridge.Years`), rate expressions (`AWS.EventBridge.Rate`), and one-time schedules
+(`AWS.EventBridge.OneTime`). A higher-level `Cron` module will follow once the individual field
+modules stabilise.
 
 Rate expressions evaluate to `NominalDiffTime` durations:
 
@@ -45,6 +48,19 @@ eitherDuration = do
 	expr <- parseRateText "rate(5 minutes)"
 	evaluateRateT expr
 -- Right 300s
+```
+
+One-time expressions evaluate to `UTCTime` values ready for scheduling:
+
+```haskell
+import AWS.EventBridge.OneTime (evaluateOneTimeT, parseOneTimeText)
+import Data.Time (UTCTime)
+
+eitherMoment :: Either String UTCTime
+eitherMoment = do
+	expr <- parseOneTimeText "at(2025-11-16T09:30:00)"
+	pure (evaluateOneTimeT expr)
+-- Right 2025-11-16 09:30:00 UTC
 ```
 
 ## Developing

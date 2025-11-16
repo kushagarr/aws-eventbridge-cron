@@ -32,6 +32,7 @@ library
     , AWS.EventBridge.Months
     , AWS.EventBridge.Years
     , AWS.EventBridge.Rate
+    , AWS.EventBridge.OneTime
   hs-source-dirs:
       src
   default-language: GHC2021
@@ -56,6 +57,7 @@ test-suite aws-eventbridge-cron-test
     , AWS.EventBridge.MonthsSpec
     , AWS.EventBridge.YearsSpec
     , AWS.EventBridge.RateSpec
+    , AWS.EventBridge.OneTimeSpec
     , TestSupport
   default-language: GHC2021
   ghc-options: -Wall

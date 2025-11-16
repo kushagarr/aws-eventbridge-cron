@@ -8,6 +8,7 @@ Semantic Versioning.
 ## [Unreleased]
 ### Added
 - Parser and evaluator for EventBridge rate expressions plus property-based tests.
+- Parser for one-time `at(...)` expressions including validation and round-trip tests.
 
 ## [0.1.0.0] - 2025-09-09
 ### Added
