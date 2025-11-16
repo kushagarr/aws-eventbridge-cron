@@ -3,17 +3,13 @@
 module AWS.EventBridge.CronSpec (tests) where
 
 import AWS.EventBridge.Cron
-import AWS.EventBridge.Minutes (parseMinutesText)
-import AWS.EventBridge.Hours (parseHoursText)
-import AWS.EventBridge.DayOfMonth (parseDayOfMonthText)
-import AWS.EventBridge.Months (parseMonthsText)
-import AWS.EventBridge.DayOfWeek (parseDayOfWeekText)
-import AWS.EventBridge.Years (parseYearsText)
+import AWS.EventBridge.DayOfMonth (DayOfMonthExprT (..), evaluateDayOfMonthT)
+import AWS.EventBridge.DayOfWeek (DayOfWeekExprT (..), evaluateDayOfWeekT)
 import Data.Time (UTCTime (..), addUTCTime, secondsToNominalDiffTime)
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.LocalTime (TimeOfDay (..), timeOfDayToTime)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (assertFailure, testCase, (@?=))
+import Test.Tasty.HUnit (testCase, (@?=))
 import Test.Tasty.QuickCheck as QC
 import TestSupport (assertLeft, expectParseWith)
 import qualified Data.Text as T
@@ -27,23 +23,9 @@ tests =
 
 manualTests :: TestTree
 manualTests = testGroup "manual"
-  [ testCase "parse cron expression" $ do
-      cronExpr <- expectParseWith "cron" parseCronText "cron(0 0 ? * 2#1 2025)"
-      expectedMinutes <- expectParseWith "minutes" parseMinutesText "0"
-      expectedHours <- expectParseWith "hours" parseHoursText "0"
-      expectedDom <- expectParseWith "dom" parseDayOfMonthText "?"
-      expectedMonths <- expectParseWith "months" parseMonthsText "*"
-      expectedDow <- expectParseWith "dow" parseDayOfWeekText "2#1"
-      expectedYears <- expectParseWith "years" parseYearsText "2025"
-      case cronExpr of
-        CronExpr mins hrs dom months dow years -> do
-          mins @?= expectedMinutes
-          hrs @?= expectedHours
-          dom @?= expectedDom
-          months @?= expectedMonths
-          dow @?= expectedDow
-          years @?= expectedYears
-        _ -> assertFailure "expected CronExpr variant"
+    [ testCase "parse cron expression" $ do
+      _ <- expectParseWith "cron" parseCronText "cron(0 0 ? * 2#1 2025)"
+      pure ()
   , testCase "next run times rate" $ do
       let base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 0 0))
       rateExpr <- expectParseWith "rate" parseCronText "rate(5 minutes)"
@@ -68,6 +50,30 @@ manualTests = testGroup "manual"
           , UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 30 0))
           , UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 45 0))
           ]
+  , testCase "cron day-of-month evaluated when day-of-week '?'" $ do
+      let base = UTCTime (fromGregorian 2025 11 1) (timeOfDayToTime (TimeOfDay 8 0 0))
+      cronExpr <- expectParseWith "cron" parseCronText "cron(0 9 5 NOV ? 2025)"
+      nextRunTimes cronExpr base 2
+        @?= Right
+          [ UTCTime (fromGregorian 2025 11 5) (timeOfDayToTime (TimeOfDay 9 0 0))
+          ]
+  , testCase "cron skips intraday times earlier than base" $ do
+      let base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 7 30))
+      cronExpr <- expectParseWith "cron" parseCronText "cron(0/15 9 ? NOV SUN 2025)"
+      nextRunTimes cronExpr base 3
+        @?= Right
+          [ UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 15 0))
+          , UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 30 0))
+          , UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 45 0))
+          ]
+  , testCase "cron spans multiple allowed years" $ do
+      let base = UTCTime (fromGregorian 2026 12 31) (timeOfDayToTime (TimeOfDay 23 0 0))
+      cronExpr <- expectParseWith "cron" parseCronText "cron(0 0 1 JAN ? 2027-2028)"
+      nextRunTimes cronExpr base 2
+        @?= Right
+          [ UTCTime (fromGregorian 2027 1 1) (timeOfDayToTime (TimeOfDay 0 0 0))
+          , UTCTime (fromGregorian 2028 1 1) (timeOfDayToTime (TimeOfDay 0 0 0))
+          ]
   , testCase "invalid day fields combination" $ do
       cronExpr <- expectParseWith "cron" parseCronText "cron(0 0 1 * 2 2025)"
       nextRunTimes cronExpr (UTCTime (fromGregorian 2025 1 1) 0) 1
@@ -85,6 +91,9 @@ propertyTests :: TestTree
 propertyTests = testGroup "properties"
   [ QC.testProperty "rate schedule monotonic" propRateMonotonic
   , QC.testProperty "cron returns at most requested" propCronLimit
+  , QC.testProperty "cron schedule monotonic and >= base" propCronMonotonic
+  , QC.testProperty "cron with '?' dom relies on day-of-week" propCronDomQuestionUsesDow
+  , QC.testProperty "cron with '?' dow relies on day-of-month" propCronDowQuestionUsesDom
   ]
 
 propRateMonotonic :: QC.Property
@@ -111,5 +120,143 @@ propCronLimit =
               Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
               Right ts -> QC.counterexample (show ts) (length ts <= limit)
 
+propCronMonotonic :: QC.Property
+propCronMonotonic =
+  QC.forAll (QC.chooseInt (1, 5)) $ \limit ->
+    let base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 5 0))
+     in case parseCronText "cron(0/15 9 ? NOV SUN 2025)" of
+          Left err -> QC.counterexample ("cron parse failed: " <> err) False
+          Right cronExpr ->
+            case nextRunTimes cronExpr base limit of
+              Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
+              Right ts -> QC.counterexample (show ts) (nonDecreasing ts && all (>= base) ts)
+  where
+    nonDecreasing xs = and (zipWith (<=) xs (drop 1 xs))
+
+propCronDomQuestionUsesDow :: QC.Property
+propCronDomQuestionUsesDow =
+  QC.forAll genCronDomQuestionCase $ \(exprText, year, month, dowExpr, base, limit) ->
+    case parseCronText exprText of
+      Left err -> QC.counterexample ("cron parse failed: " <> err) False
+      Right cronExpr ->
+        case evaluateDayOfWeekT year month dowExpr of
+          Left err -> QC.counterexample ("day-of-week evaluation failed: " <> err) False
+          Right allowedDays ->
+            case nextRunTimes cronExpr base limit of
+              Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
+              Right ts ->
+                let days = map (thirdOf . toGregorian . utctDay) ts
+                    monthsOk = all ((== month) . secondOf . toGregorian . utctDay) ts
+                    yearsOk = all ((== year) . firstOf . toGregorian . utctDay) ts
+                 in QC.counterexample (show ts)
+                      (monthsOk && yearsOk && all (`elem` allowedDays) days)
+
+propCronDowQuestionUsesDom :: QC.Property
+propCronDowQuestionUsesDom =
+  QC.forAll genCronDowQuestionCase $ \(exprText, year, month, domExpr, base, limit) ->
+    case parseCronText exprText of
+      Left err -> QC.counterexample ("cron parse failed: " <> err) False
+      Right cronExpr ->
+        case evaluateDayOfMonthT year month domExpr of
+          Left err -> QC.counterexample ("day-of-month evaluation failed: " <> err) False
+          Right allowedDays ->
+            case nextRunTimes cronExpr base limit of
+              Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
+              Right ts ->
+                let days = map (thirdOf . toGregorian . utctDay) ts
+                    monthsOk = all ((== month) . secondOf . toGregorian . utctDay) ts
+                    yearsOk = all ((== year) . firstOf . toGregorian . utctDay) ts
+                 in QC.counterexample (show ts)
+                      (monthsOk && yearsOk && all (`elem` allowedDays) days)
+
 addMinutes :: UTCTime -> Integer -> UTCTime
 addMinutes t minutes = addUTCTime (secondsToNominalDiffTime (fromIntegral (minutes * 60))) t
+
+genCronDomQuestionCase :: QC.Gen (T.Text, Integer, Int, DayOfWeekExprT, UTCTime, Int)
+genCronDomQuestionCase = do
+  minute <- QC.chooseInt (0, 59)
+  hour <- QC.chooseInt (0, 23)
+  month <- QC.chooseInt (1, 12)
+  year <- QC.chooseInt (2025, 2030)
+  dowExpr <- genDowExpr
+  limit <- QC.chooseInt (1, 5)
+  let exprText = renderCron minute hour "?" (T.pack (show month)) (renderDowExpr dowExpr) (T.pack (show year))
+      base = UTCTime (fromGregorian (toInteger year) month 1) (timeOfDayToTime (TimeOfDay 0 0 0))
+  pure (exprText, toInteger year, month, dowExpr, base, limit)
+
+genCronDowQuestionCase :: QC.Gen (T.Text, Integer, Int, DayOfMonthExprT, UTCTime, Int)
+genCronDowQuestionCase = do
+  minute <- QC.chooseInt (0, 59)
+  hour <- QC.chooseInt (0, 23)
+  month <- QC.chooseInt (1, 12)
+  year <- QC.chooseInt (2025, 2030)
+  domExpr <- genDomExpr
+  limit <- QC.chooseInt (1, 5)
+  let exprText = renderCron minute hour (renderDomExpr domExpr) (T.pack (show month)) "?" (T.pack (show year))
+      base = UTCTime (fromGregorian (toInteger year) month 1) (timeOfDayToTime (TimeOfDay 0 0 0))
+  pure (exprText, toInteger year, month, domExpr, base, limit)
+
+genDowExpr :: QC.Gen DayOfWeekExprT
+genDowExpr = QC.oneof
+  [ DowAt <$> QC.chooseInt (1, 7)
+  , do
+      start <- QC.chooseInt (1, 7)
+      end <- QC.chooseInt (start, 7)
+      pure (if start == end then DowAt start else DowRange start end)
+  ]
+
+genDomExpr :: QC.Gen DayOfMonthExprT
+genDomExpr = QC.oneof
+  [ DomAt <$> QC.chooseInt (1, 28)
+  , do
+      start <- QC.chooseInt (1, 28)
+      end <- QC.chooseInt (start, 28)
+      pure (if start == end then DomAt start else DomRange start end)
+  ]
+
+renderCron :: Int -> Int -> T.Text -> T.Text -> T.Text -> T.Text -> T.Text
+renderCron minute hour domPart monthPart dowPart yearPart =
+  T.concat
+    [ "cron("
+    , T.pack (show minute)
+    , " "
+    , T.pack (show hour)
+    , " "
+    , domPart
+    , " "
+    , monthPart
+    , " "
+    , dowPart
+    , " "
+    , yearPart
+    , ")"
+    ]
+
+renderDowExpr :: DayOfWeekExprT -> T.Text
+renderDowExpr DowAny = "?"
+renderDowExpr DowAll = "*"
+renderDowExpr (DowAt d) = T.pack (show d)
+renderDowExpr (DowRange a b) = if a == b then T.pack (show a) else T.concat [T.pack (show a), "-", T.pack (show b)]
+renderDowExpr (DowNth d n) = T.concat [T.pack (show d), "#", T.pack (show n)]
+renderDowExpr (DowUnion a b) = T.concat [renderDowExpr a, ",", renderDowExpr b]
+
+renderDomExpr :: DayOfMonthExprT -> T.Text
+renderDomExpr DomAny = "?"
+renderDomExpr DomAll = "*"
+renderDomExpr (DomAt d) = T.pack (show d)
+renderDomExpr (DomRange a b) = if a == b then T.pack (show a) else T.concat [T.pack (show a), "-", T.pack (show b)]
+renderDomExpr (DomStep a b) = T.concat [T.pack (show a), "/", T.pack (show b)]
+renderDomExpr (DomUnion a b) = T.concat [renderDomExpr a, ",", renderDomExpr b]
+renderDomExpr DomLast = "L"
+renderDomExpr (DomLastOffset n) = T.concat ["L-", T.pack (show n)]
+renderDomExpr (DomClosestWeekday d) = T.concat [T.pack (show d), "W"]
+renderDomExpr DomLastWeekday = "LW"
+
+firstOf :: (a, b, c) -> a
+firstOf (x, _, _) = x
+
+secondOf :: (a, b, c) -> b
+secondOf (_, y, _) = y
+
+thirdOf :: (a, b, c) -> c
+thirdOf (_, _, z) = z

@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  release:
+    types: [published, prereleased]
+
+env:
+  PACKAGE_NAME: aws-eventbridge-cron
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.6.7"
+          cabal-version: "3.10.2.1"
+
+      - name: Cache cabal store and dist-newstyle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/store
+            dist-newstyle
+          key: release-${{ runner.os }}-${{ hashFiles('cabal.project', 'aws-eventbridge-cron.cabal') }}
+
+      - name: Update package index
+        run: cabal update
+
+      - name: Build
+        run: cabal build all
+
+      - name: Run test suite
+        run: cabal test --test-show-details=direct
+
+      - name: Create source distribution
+        run: cabal sdist
+
+      - name: cabal check
+        run: cabal check
+
+      - name: Build Haddock documentation
+        run: cabal haddock --haddock-for-hackage --enable-doc
+
+      - name: Collect release artifacts
+        id: artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          cp dist-newstyle/sdist/*.tar.gz release-artifacts/
+          DOC_TARBALL=$(find dist-newstyle -maxdepth 5 -type f -name "*-docs.tar.gz" -print -quit)
+          if [ -n "$DOC_TARBALL" ]; then
+            cp "$DOC_TARBALL" release-artifacts/
+          fi
+          SDIST=$(find release-artifacts -maxdepth 1 -type f -name "*.tar.gz" ! -name "*-docs.tar.gz")
+          DOCS=$(find release-artifacts -maxdepth 1 -type f -name "*-docs.tar.gz" -print -quit)
+          echo "sdist=$SDIST" >> "$GITHUB_OUTPUT"
+          echo "docs=$DOCS" >> "$GITHUB_OUTPUT"
+
+      - name: Upload assets to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.artifacts.outputs.sdist }}
+            ${{ steps.artifacts.outputs.docs }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Hackage credentials
+        if: ${{ secrets.HACKAGE_USERNAME != '' && secrets.HACKAGE_PASSWORD != '' }}
+        env:
+          HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
+          HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}
+        run: |
+          cabal user-config update
+          {
+            echo "username: $HACKAGE_USERNAME"
+            echo "password: $HACKAGE_PASSWORD"
+          } >> ~/.cabal/config
+
+      - name: Upload candidate to Hackage
+        if: ${{ secrets.HACKAGE_USERNAME != '' && secrets.HACKAGE_PASSWORD != '' && github.event.release.prerelease }}
+        run: |
+          cabal upload --candidate "${{ steps.artifacts.outputs.sdist }}"
+          if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
+            cabal upload --candidate --doc "${{ steps.artifacts.outputs.docs }}"
+          fi
+
+      - name: Publish package to Hackage
+        if: ${{ secrets.HACKAGE_USERNAME != '' && secrets.HACKAGE_PASSWORD != '' && !github.event.release.prerelease }}
+        run: |
+          cabal upload --publish "${{ steps.artifacts.outputs.sdist }}"
+          if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
+            cabal upload --publish --doc "${{ steps.artifacts.outputs.docs }}"
+          fi

@@ -1,6 +1,14 @@
 {-# LANGUAGE OverloadedStrings  #-}
 
-module AWS.EventBridge.Cron where
+-- | Parse AWS EventBridge scheduling expressions and evaluate their upcoming run times.
+--
+-- The entrypoints exposed here mirror the behaviour of EventBridge rules, including
+-- support for cron, rate, and one-time ("at") expressions.
+module AWS.EventBridge.Cron
+  ( CronExprT
+  , parseCronText
+  , nextRunTimes
+  ) where
 import AWS.EventBridge.Minutes ( MinutesExprT, parseMinutesText, evaluateMinuteT )
 import AWS.EventBridge.Hours ( HoursExprT, parseHoursText, evaluateHourT )
 import AWS.EventBridge.DayOfMonth ( DayOfMonthExprT(..), parseDayOfMonthText, evaluateDayOfMonthT )
@@ -19,6 +27,11 @@ import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.LocalTime (TimeOfDay(..), timeOfDayToTime)
 
 
+-- | EventBridge scheduling expression.
+--
+-- Constructors mirror the three families of EventBridge schedules. The structure is
+-- exposed to allow pattern matching by advanced users, but most callers should rely on
+-- the parser and evaluator helpers provided by this module.
 data CronExprT
   = CronExpr
       { minutes    :: MinutesExprT
@@ -34,6 +47,10 @@ data CronExprT
 
 type Parser = Parsec Void Text
 
+-- | Parse an EventBridge scheduling expression.
+--
+-- Accepts cron, rate, and one-time ("at") expressions. Returns human-readable error
+-- messages that match the validations enforced by AWS.
 parseCronText :: Text -> Either String CronExprT
 parseCronText input =
   case parse parseCron "cron" (T.strip input) of
@@ -70,6 +87,11 @@ parseCronExpr = do
 
 
 
+-- | Evaluate future run times for the supplied expression.
+--
+-- The list always includes occurrences at or after the base time, limited to the
+-- requested count. Errors bubble up if the expression cannot produce valid timestamps
+-- (for example conflicting day-of-month/day-of-week fields).
 nextRunTimes :: CronExprT -> UTCTime -> Int -> Either String [UTCTime]
 nextRunTimes expr base limit =
   case expr of

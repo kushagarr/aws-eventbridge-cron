@@ -1,86 +1,107 @@
 # aws-eventbridge-cron
 
-Utilities for exploring and validating AWS EventBridge cron expressions.
+Parse AWS EventBridge cron, rate, and one-time expressions and compute their
+future run times.
 
-Status: early draft. API may change prior to 1.0.
+Status: early preview. Expect small API tweaks before a `1.0.0` release.
 
-## What’s here
+## Features
 
-- Parsers for individual cron fields used by EventBridge (minutes, hours, day-of-month,
-	day-of-week, months, years) with evaluation helpers for valid value lists.
-- Parser and evaluator for EventBridge rate expressions that produce validated
-	`NominalDiffTime` durations.
-- Parser for one-time `at(...)` expressions that yields validated `UTCTime`
-	timestamps.
-- Property-based test suite that exercises nominal and edge-case inputs drawn from
-	the [AWS EventBridge cron expression documentation][aws-docs].
-- Library code compiled with GHC2021 and warnings enabled by default.
+- Single entry point: `AWS.EventBridge.Cron` exports the `CronExprT` type,
+  `parseCronText` parser, and `nextRunTimes` scheduler.
+- Full support for EventBridge-specific syntax such as `?` wildcards, `L`, `LW`,
+  weekday ranges, and nth-weekday modifiers (`2#1`).
+- `rate(...)` and `at(...)` expressions share the same API, so callers do not
+  need to branch on expression variants.
+- Extensive property-based test suite that mirrors the behaviour documented by
+  AWS.
 
-## Usage
+## Installation
 
-The library currently exposes low-level modules for each cron field. For example, you
-can parse and evaluate month expressions like this:
-
-```haskell
-import AWS.EventBridge.Months (evaluateMonthT, parseMonthsText)
-
-eitherExpr :: Either String [Int]
-eitherExpr = do
-	expr <- parseMonthsText "Jan,4,Aug"
-	evaluateMonthT expr
--- Right [1,4,8]
+```
+cabal install aws-eventbridge-cron
 ```
 
-Similar helpers exist for minutes (`AWS.EventBridge.Minutes`), hours (`AWS.EventBridge.Hours`),
-day-of-month (`AWS.EventBridge.DayOfMonth`), day-of-week (`AWS.EventBridge.DayOfWeek`), years
-(`AWS.EventBridge.Years`), rate expressions (`AWS.EventBridge.Rate`), and one-time schedules
-(`AWS.EventBridge.OneTime`). A higher-level `Cron` module will follow once the individual field
-modules stabilise.
+Or add the package to your component:
 
-Rate expressions evaluate to `NominalDiffTime` durations:
-
-```haskell
-import AWS.EventBridge.Rate (evaluateRateT, parseRateText)
-import Data.Time.Clock (NominalDiffTime)
-
-eitherDuration :: Either String NominalDiffTime
-eitherDuration = do
-	expr <- parseRateText "rate(5 minutes)"
-	evaluateRateT expr
--- Right 300s
+```cabal
+build-depends:
+    aws-eventbridge-cron >= 0.1 && < 0.2
 ```
 
-One-time expressions evaluate to `UTCTime` values ready for scheduling:
+## Quick Start
 
 ```haskell
-import AWS.EventBridge.OneTime (evaluateOneTimeT, parseOneTimeText)
-import Data.Time (UTCTime)
+import AWS.EventBridge.Cron
+import Data.Time (UTCTime(..), fromGregorian)
+import Data.Time.LocalTime (TimeOfDay(..), timeOfDayToTime)
 
-eitherMoment :: Either String UTCTime
-eitherMoment = do
-	expr <- parseOneTimeText "at(2025-11-16T09:30:00)"
-	pure (evaluateOneTimeT expr)
--- Right 2025-11-16 09:30:00 UTC
+base :: UTCTime
+base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 0 0))
+
+example :: Either String [UTCTime]
+example = do
+  expr <- parseCronText "cron(0/15 9 ? NOV SUN 2025)"
+  nextRunTimes expr base 4
+-- Right [2025-11-16 09:00:00 UTC, 2025-11-16 09:15:00 UTC, ...]
 ```
 
-## Developing
+The parser also accepts `rate(...)` and `at(...)` expressions:
 
-- Requires GHC and cabal-install.
-- GHC2021 is the default language.
+```haskell
+rateExample :: Either String [UTCTime]
+rateExample = do
+  expr <- parseCronText "rate(10 minutes)"
+  nextRunTimes expr base 3
+
+atExample :: Either String [UTCTime]
+atExample = do
+  expr <- parseCronText "at(2025-11-16T09:30:00)"
+  nextRunTimes expr base 5
+```
+
+### Error Reporting
+
+Parser and evaluator failures return `Left String` with human-readable error
+messages:
+
+```haskell
+Left "day-of-month and day-of-week fields must use '?' in exactly one position"
+```
+
+The messages mirror the constraints enforced by EventBridge when you create
+scheduled rules.
+
+## Design Notes
+
+- `CronExprT` is intentionally opaque. Construct values with `parseCronText` and
+  feed them into `nextRunTimes`.
+- Scheduling honours the EventBridge rule that exactly one of day-of-month or
+  day-of-week must be `?`.
+- Results are monotonic, capped at the requested limit, and never fall before
+  the supplied base time.
+
+See `test/AWS/EventBridge/CronSpec.hs` for more examples and edge cases.
+
+## Development
 
 ```bash
 cabal build
-cabal repl
 cabal test
+cabal haddock --open
 ```
 
 ## Contributing
 
-Bug reports, suggestions, and pull requests are welcome. Please file issues or share ideas
-before large-scale changes to ensure we keep the API coherent.
+Bug reports, suggestions, and pull requests are welcome. Please open an issue
+before large-scale changes so we can keep the API coherent.
 
 ## License
 
-BSD-3-Clause
+Released under the BSD-3-Clause license. See `LICENSE` for details.
 
-[aws-docs]: https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-scheduled-rule-pattern.html#eb-cron-expressions
+## References
+
+- [AWS EventBridge cron expression documentation][aws-docs]
+
+[aws-docs]: https://docs.aws.amazon.com/scheduler/latest/UserGuide/schedule-types.html#cron-based
