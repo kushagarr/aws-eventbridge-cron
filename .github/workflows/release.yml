@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
+      HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}
 
     steps:
       - name: Checkout sources
@@ -76,10 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Hackage credentials
-        if: ${{ secrets.HACKAGE_USERNAME != '' && secrets.HACKAGE_PASSWORD != '' }}
-        env:
-          HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
-          HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' }}
         run: |
           cabal user-config update
           {
@@ -88,7 +88,7 @@ jobs:
           } >> ~/.cabal/config
 
       - name: Upload candidate to Hackage
-        if: ${{ secrets.HACKAGE_USERNAME != '' && secrets.HACKAGE_PASSWORD != '' && github.event.release.prerelease }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && github.event.release.prerelease }}
         run: |
           cabal upload --candidate "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
@@ -96,7 +96,7 @@ jobs:
           fi
 
       - name: Publish package to Hackage
-        if: ${{ secrets.HACKAGE_USERNAME != '' && secrets.HACKAGE_PASSWORD != '' && !github.event.release.prerelease }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && !github.event.release.prerelease }}
         run: |
           cabal upload --publish "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
