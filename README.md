@@ -7,7 +7,9 @@ Status: early draft. API may change prior to 1.0.
 ## What’s here
 
 - Parsers for individual cron fields used by EventBridge (minutes, hours, day-of-month,
-  day-of-week, months, years) with evaluation helpers for valid value lists.
+	day-of-week, months, years) with evaluation helpers for valid value lists.
+- Parser and evaluator for EventBridge rate expressions that produce validated
+	`NominalDiffTime` durations.
 - Property-based test suite that exercises nominal and edge-case inputs drawn from
 	the [AWS EventBridge cron expression documentation][aws-docs].
 - Library code compiled with GHC2021 and warnings enabled by default.
@@ -28,9 +30,22 @@ eitherExpr = do
 ```
 
 Similar helpers exist for minutes (`AWS.EventBridge.Minutes`), hours (`AWS.EventBridge.Hours`),
-day-of-month (`AWS.EventBridge.DayOfMonth`), day-of-week (`AWS.EventBridge.DayOfWeek`), and years
-(`AWS.EventBridge.Years`). A higher-level `Cron` module will follow once the individual field
-modules stabilise.
+day-of-month (`AWS.EventBridge.DayOfMonth`), day-of-week (`AWS.EventBridge.DayOfWeek`), years
+(`AWS.EventBridge.Years`), and rate expressions (`AWS.EventBridge.Rate`). A higher-level `Cron`
+module will follow once the individual field modules stabilise.
+
+Rate expressions evaluate to `NominalDiffTime` durations:
+
+```haskell
+import AWS.EventBridge.Rate (evaluateRateT, parseRateText)
+import Data.Time.Clock (NominalDiffTime)
+
+eitherDuration :: Either String NominalDiffTime
+eitherDuration = do
+	expr <- parseRateText "rate(5 minutes)"
+	evaluateRateT expr
+-- Right 300s
+```
 
 ## Developing
 

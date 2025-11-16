@@ -6,6 +6,7 @@ import qualified AWS.EventBridge.HoursSpec as HoursSpec
 import qualified AWS.EventBridge.MinutesSpec as MinutesSpec
 import qualified AWS.EventBridge.MonthsSpec as MonthsSpec
 import qualified AWS.EventBridge.YearsSpec as YearsSpec
+import qualified AWS.EventBridge.RateSpec as RateSpec
 import Test.Tasty (defaultMain, testGroup)
 
 main :: IO ()
@@ -18,4 +19,5 @@ main =
       , MinutesSpec.tests
       , MonthsSpec.tests
       , YearsSpec.tests
+      , RateSpec.tests
       ]
