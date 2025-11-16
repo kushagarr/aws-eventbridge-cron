@@ -223,6 +223,8 @@ parseTokenUnsafe t =
 
 isStepProgression :: Int -> Int -> [Int] -> Bool
 isStepProgression _ _ [] = True
-isStepProgression _ _ [_] = True
-isStepProgression start step xs@(x0 : _) =
-  x0 == start && all (== step) (zipWith (-) (tail xs) xs)
+isStepProgression start step (x0 : rest) =
+  x0 == start && all (== step) (consecutiveDiffs x0 rest)
+  where
+    consecutiveDiffs _ [] = []
+    consecutiveDiffs prev (y : ys) = (y - prev) : consecutiveDiffs y ys
