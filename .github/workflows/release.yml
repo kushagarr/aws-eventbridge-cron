@@ -46,7 +46,9 @@ jobs:
         run: cabal test --test-show-details=direct
 
       - name: Create source distribution
-        run: cabal sdist
+        run: |
+          mkdir -p release-artifacts
+          cabal sdist --output-dir release-artifacts
 
       - name: cabal check
         run: cabal check
@@ -54,27 +56,35 @@ jobs:
       - name: Build Haddock documentation
         run: cabal haddock --haddock-for-hackage --enable-doc
 
-      - name: Collect release artifacts
+      - name: Locate release artifacts
         id: artifacts
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p release-artifacts
-          cp dist-newstyle/sdist/*.tar.gz release-artifacts/
-          DOC_TARBALL=$(find dist-newstyle -maxdepth 5 -type f -name "*-docs.tar.gz" -print -quit)
-          if [ -n "$DOC_TARBALL" ]; then
-            cp "$DOC_TARBALL" release-artifacts/
+          shopt -s globstar nullglob
+          SDIST=(release-artifacts/*.tar.gz)
+          if [ "${#SDIST[@]}" -eq 0 ]; then
+            echo "no source distribution found" >&2
+            exit 1
           fi
-          SDIST=$(find release-artifacts -maxdepth 1 -type f -name "*.tar.gz" ! -name "*-docs.tar.gz")
-          DOCS=$(find release-artifacts -maxdepth 1 -type f -name "*-docs.tar.gz" -print -quit)
-          echo "sdist=$SDIST" >> "$GITHUB_OUTPUT"
-          echo "docs=$DOCS" >> "$GITHUB_OUTPUT"
+          DOCS=(dist-newstyle/**/${PACKAGE_NAME}-*-docs.tar.gz)
+          echo "sdist=${SDIST[0]}" >> "$GITHUB_OUTPUT"
+          if [ "${#DOCS[@]}" -gt 0 ]; then
+            echo "docs=${DOCS[0]}" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "files<<'EOF'"
+            printf '%s\n' "${SDIST[0]}"
+            if [ "${#DOCS[@]}" -gt 0 ]; then
+              printf '%s\n' "${DOCS[0]}"
+            fi
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload assets to GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ steps.artifacts.outputs.sdist }}
-            ${{ steps.artifacts.outputs.docs }}
+          files: ${{ steps.artifacts.outputs.files }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
