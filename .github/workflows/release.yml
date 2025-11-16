@@ -82,9 +82,11 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload assets to GitHub release
+        if: ${{ github.event.action == 'published' }}
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.artifacts.outputs.files }}
+          overwrite: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -98,7 +100,7 @@ jobs:
           } >> ~/.cabal/config
 
       - name: Upload candidate to Hackage
-        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && github.event.release.prerelease }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && github.event.action == 'published' && github.event.release.prerelease }}
         run: |
           cabal upload --candidate "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
@@ -106,7 +108,7 @@ jobs:
           fi
 
       - name: Publish package to Hackage
-        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && !github.event.release.prerelease }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && (github.event.action == 'released' || (github.event.action == 'published' && !github.event.release.prerelease)) }}
         run: |
           cabal upload --publish "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
