@@ -6,6 +6,9 @@
 -- support for cron, rate, and one-time ("at") expressions.
 module AWS.EventBridge.Cron
   ( CronExprT
+  , ScheduleKind(..)
+  , scheduleKind
+  , isRecurring
   , parseCronText
   , nextRunTimes
   ) where
@@ -29,9 +32,8 @@ import Data.Time.LocalTime (TimeOfDay(..), timeOfDayToTime)
 
 -- | EventBridge scheduling expression.
 --
--- Constructors mirror the three families of EventBridge schedules. The structure is
--- exposed to allow pattern matching by advanced users, but most callers should rely on
--- the parser and evaluator helpers provided by this module.
+-- The concrete representation is intentionally opaque; use 'scheduleKind' to detect the
+-- backing schedule family and 'nextRunTimes' to evaluate upcoming occurrences.
 data CronExprT
   = CronExpr
       { minutes    :: MinutesExprT
@@ -44,6 +46,26 @@ data CronExprT
   | RateExpr RateExprT
   | OneTimeExpr OneTimeExprT
   deriving (Eq, Show)
+
+-- | Classification of an EventBridge scheduling expression.
+data ScheduleKind
+  = CronSchedule
+  | RateSchedule
+  | OneTimeSchedule
+  deriving (Eq, Ord, Show)
+
+-- | Determine which family of expression a parsed value belongs to.
+scheduleKind :: CronExprT -> ScheduleKind
+scheduleKind CronExpr{}    = CronSchedule
+scheduleKind RateExpr{}    = RateSchedule
+scheduleKind OneTimeExpr{} = OneTimeSchedule
+
+-- | True when the schedule produces multiple occurrences (cron or rate).
+isRecurring :: CronExprT -> Bool
+isRecurring expr =
+  case scheduleKind expr of
+    OneTimeSchedule -> False
+    _               -> True
 
 type Parser = Parsec Void Text
 

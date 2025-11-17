@@ -90,11 +90,60 @@ manualTests = testGroup "manual"
 propertyTests :: TestTree
 propertyTests = testGroup "properties"
   [ QC.testProperty "rate schedule monotonic" propRateMonotonic
+  , QC.testProperty "schedule kind round-trips for cron" propScheduleKindCron
+  , QC.testProperty "schedule kind round-trips for rate" propScheduleKindRate
+  , QC.testProperty "schedule kind identifies one-time" propScheduleKindOneTime
+  , QC.testProperty "isRecurring agrees with schedule kind" propIsRecurring
   , QC.testProperty "cron returns at most requested" propCronLimit
   , QC.testProperty "cron schedule monotonic and >= base" propCronMonotonic
   , QC.testProperty "cron with '?' dom relies on day-of-week" propCronDomQuestionUsesDow
   , QC.testProperty "cron with '?' dow relies on day-of-month" propCronDowQuestionUsesDom
   ]
+
+propScheduleKindCron :: QC.Property
+propScheduleKindCron =
+  let exprText = "cron(0 0 ? NOV MON 2025)"
+  in case parseCronText exprText of
+      Left err -> QC.counterexample ("cron parse failed: " <> err) False
+      Right expr ->
+        QC.counterexample (show (scheduleKind expr)) (scheduleKind expr QC.=== CronSchedule)
+
+propScheduleKindRate :: QC.Property
+propScheduleKindRate =
+  let exprText = "rate(15 minutes)"
+  in case parseCronText exprText of
+      Left err -> QC.counterexample ("rate parse failed: " <> err) False
+      Right expr ->
+        QC.counterexample (show (scheduleKind expr)) (scheduleKind expr QC.=== RateSchedule)
+
+propScheduleKindOneTime :: QC.Property
+propScheduleKindOneTime =
+  let exprText = "at(2025-11-16T09:30:00)"
+  in case parseCronText exprText of
+      Left err -> QC.counterexample ("at parse failed: " <> err) False
+      Right expr ->
+        QC.counterexample (show (scheduleKind expr)) (scheduleKind expr QC.=== OneTimeSchedule)
+
+propIsRecurring :: QC.Property
+propIsRecurring =
+  QC.conjoin
+    [ QC.counterexample "cron should be recurring" cronRecurring
+    , QC.counterexample "rate should be recurring" rateRecurring
+    , QC.counterexample "one-time should not be recurring" oneTimeNonRecurring
+    ]
+  where
+    cronRecurring =
+      case parseCronText "cron(0 12 ? JAN MON 2025)" of
+        Right expr -> isRecurring expr
+        Left _ -> False
+    rateRecurring =
+      case parseCronText "rate(1 hour)" of
+        Right expr -> isRecurring expr
+        Left _ -> False
+    oneTimeNonRecurring =
+      case parseCronText "at(2025-11-16T09:30:00)" of
+        Right expr -> not (isRecurring expr)
+        Left _ -> False
 
 propRateMonotonic :: QC.Property
 propRateMonotonic =

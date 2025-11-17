@@ -13,6 +13,9 @@ Status: early preview. Expect small API tweaks before a `1.0.0` release.
   weekday ranges, and nth-weekday modifiers (`2#1`).
 - `rate(...)` and `at(...)` expressions share the same API, so callers do not
   need to branch on expression variants.
+- Schedule introspection helpers: `scheduleKind` returns a `ScheduleKind`, and
+  `isRecurring` distinguishes recurring (`cron`/`rate`) expressions from
+  `at(...)` one-time schedules.
 - Extensive property-based test suite that mirrors the behaviour documented by
   AWS.
 
@@ -58,6 +61,15 @@ atExample :: Either String [UTCTime]
 atExample = do
   expr <- parseCronText "at(2025-11-16T09:30:00)"
   nextRunTimes expr base 5
+
+-- Introspect the parsed expression without re-parsing downstream.
+kindExample :: Either String ScheduleKind
+kindExample = scheduleKind <$> parseCronText "rate(5 minutes)"
+-- Right RateSchedule
+
+isRecurringExample :: Either String Bool
+isRecurringExample = isRecurring <$> parseCronText "at(2025-11-16T09:30:00)"
+-- Right False
 ```
 
 ### Error Reporting
