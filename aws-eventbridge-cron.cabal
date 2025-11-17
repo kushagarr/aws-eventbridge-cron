@@ -20,7 +20,7 @@ maintainer:         Kushagra Gupta <khushiitrans@gmail.com>
 license:            BSD-3-Clause
 license-file:       LICENSE
 build-type:         Simple
-tested-with:        GHC == 9.6.* || == 9.8.* || == 9.10.*
+tested-with:        GHC == 9.6.* || == 9.8.* || == 9.10.* || == 9.12.*
 
 extra-doc-files:
   README.md
