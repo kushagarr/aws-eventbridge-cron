@@ -1,8 +1,7 @@
 name: Release
-
 on:
   release:
-    types: [published]   # only full releases fire this workflow
+    types: [published]
 
 env:
   PACKAGE_NAME: aws-eventbridge-cron
@@ -11,7 +10,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write     # needed to attach assets to the release
+      contents: write
     env:
       HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
       HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}
@@ -89,19 +88,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Configure Hackage credentials
+      - name: Publish package to Hackage (Basic Auth)
         if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' }}
+        env:
+          HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
+          HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}
         run: |
-          cabal user-config update
-          {
-            echo "username: $HACKAGE_USERNAME"
-            echo "password: $HACKAGE_PASSWORD"
-          } >> ~/.cabal/config
-
-      - name: Publish package to Hackage
-        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' }}
-        run: |
-          cabal upload --publish "${{ steps.artifacts.outputs.sdist }}"
+          set -euo pipefail
+          cabal upload --publish -u "$HACKAGE_USERNAME" -p "$HACKAGE_PASSWORD" "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
-            cabal upload --publish --doc "${{ steps.artifacts.outputs.docs }}"
+            cabal upload --publish --documentation -u "$HACKAGE_USERNAME" -p "$HACKAGE_PASSWORD" "${{ steps.artifacts.outputs.docs }}"
           fi
