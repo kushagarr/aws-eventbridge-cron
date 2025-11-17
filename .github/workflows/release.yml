@@ -73,7 +73,7 @@ jobs:
             echo "docs=${DOCS[0]}" >> "$GITHUB_OUTPUT"
           fi
           {
-            echo "files<<'EOF'"
+            echo 'files<<EOF'
             printf '%s\n' "${SDIST[0]}"
             if [ "${#DOCS[@]}" -gt 0 ]; then
               printf '%s\n' "${DOCS[0]}"
