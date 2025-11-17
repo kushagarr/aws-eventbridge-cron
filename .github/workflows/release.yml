@@ -2,7 +2,7 @@ name: Release
 
 on:
   release:
-    types: [published, prereleased]
+    types: [prereleased, published]
 
 env:
   PACKAGE_NAME: aws-eventbridge-cron
@@ -26,7 +26,7 @@ jobs:
         uses: haskell-actions/setup@v2
         with:
           ghc-version: "9.6.7"
-          cabal-version: "3.10.2.1"
+          cabal-version: "3.14.2.0"
 
       - name: Cache cabal store and dist-newstyle
         uses: actions/cache@v4
@@ -99,16 +99,18 @@ jobs:
             echo "password: $HACKAGE_PASSWORD"
           } >> ~/.cabal/config
 
+      # Candidate upload on pre-release creation
       - name: Upload candidate to Hackage
-        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && github.event.action == 'published' && github.event.release.prerelease }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && (github.event.action == 'prereleased' || (github.event.action == 'published' && github.event.release.prerelease)) }}
         run: |
           cabal upload --candidate "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
             cabal upload --candidate --doc "${{ steps.artifacts.outputs.docs }}"
           fi
 
+      # Final publish on full release publication
       - name: Publish package to Hackage
-        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && (github.event.action == 'released' || (github.event.action == 'published' && !github.event.release.prerelease)) }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && github.event.action == 'published' && !github.event.release.prerelease }}
         run: |
           cabal upload --publish "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
