@@ -2,7 +2,7 @@ name: Release
 
 on:
   release:
-    types: [prereleased, published]
+    types: [published]   # only full releases fire this workflow
 
 env:
   PACKAGE_NAME: aws-eventbridge-cron
@@ -11,7 +11,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write     # needed to attach assets to the release
     env:
       HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
       HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}
@@ -26,7 +26,7 @@ jobs:
         uses: haskell-actions/setup@v2
         with:
           ghc-version: "9.6.7"
-          cabal-version: "3.14.2.0"
+          cabal-version: "3.10.2.1"
 
       - name: Cache cabal store and dist-newstyle
         uses: actions/cache@v4
@@ -82,11 +82,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Upload assets to GitHub release
-        if: ${{ github.event.action == 'published' }}
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.artifacts.outputs.files }}
-          overwrite: true
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -99,18 +98,8 @@ jobs:
             echo "password: $HACKAGE_PASSWORD"
           } >> ~/.cabal/config
 
-      # Candidate upload on pre-release creation
-      - name: Upload candidate to Hackage
-        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && (github.event.action == 'prereleased' || (github.event.action == 'published' && github.event.release.prerelease)) }}
-        run: |
-          cabal upload --candidate "${{ steps.artifacts.outputs.sdist }}"
-          if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
-            cabal upload --candidate --doc "${{ steps.artifacts.outputs.docs }}"
-          fi
-
-      # Final publish on full release publication
       - name: Publish package to Hackage
-        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' && github.event.action == 'published' && !github.event.release.prerelease }}
+        if: ${{ env.HACKAGE_USERNAME != '' && env.HACKAGE_PASSWORD != '' }}
         run: |
           cabal upload --publish "${{ steps.artifacts.outputs.sdist }}"
           if [ -n "${{ steps.artifacts.outputs.docs }}" ]; then
