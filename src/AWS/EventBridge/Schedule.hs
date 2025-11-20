@@ -2,38 +2,40 @@
 
 -- | Zone-aware helpers built on top of 'AWS.EventBridge.Cron'.
 --
--- ## Choosing an entry point
+-- == Choosing an entry point
 --
--- 1. Parse the expression: use 'parseCronText' (UTC-only) or 'scheduleFromText'
---    when the rule already specifies an IANA timezone.
--- 2. Wrap the expression with 'scheduleFromExpr' or 'scheduleFromText' to carry
---    timezone metadata.
--- 3. Evaluate upcoming runs via the primary trio:
+-- * Parse the expression: use 'parseCronText' (UTC-only) or 'scheduleFromText'
+--   when the rule already specifies an IANA timezone.
+-- * Wrap the expression with 'scheduleFromExpr' or 'scheduleFromText' to carry
+--   timezone metadata.
+-- * Evaluate upcoming runs via the primary trio:
 --
---    * 'nextRunTimesUTC'   – keep everything in UTC and compare against other
---      absolute timestamps.
---    * 'nextRunTimesLocal' – receive wall-clock values in the schedule's zone.
---    * 'nextRunTimesZoned' – like 'nextRunTimesLocal' but tagged with the
---      `TimeZone` used at each occurrence (captures DST changes).
+--   * 'nextRunTimesUTC'   – keep everything in UTC and compare against other
+--     absolute timestamps.
+--   * 'nextRunTimesLocal' – receive wall-clock values in the schedule's zone.
+--   * 'nextRunTimesZoned' – like 'nextRunTimesLocal' but tagged with the
+--     'TimeZone' used at each occurrence (captures DST changes).
 --
--- Conversion helpers (the `*FromUTC`, `*FromLocal`, and `*FromZoned` variants)
+-- Conversion helpers (the @*FromUTC@, @*FromLocal@, and @*FromZoned@ variants)
 -- simply preprocess the base value before delegating to one of the three
 -- primary functions. They are handy when your caller already has a specific
 -- representation and you want to avoid manual conversions.
 --
--- ### Base/Input vs Output quick reference
+-- == Base/Input vs Output quick reference
 --
--- | Base type  | Desired output | Function                         |
--- |------------|----------------|----------------------------------|
--- | 'UTCTime'  | 'UTCTime'      | 'nextRunTimesUTC'                |
--- | 'LocalTime'| 'UTCTime'      | 'nextRunTimesUTCFromLocal'       |
--- | 'ZonedTime'| 'UTCTime'      | 'nextRunTimesUTCFromZoned'       |
--- | 'UTCTime'  | 'LocalTime'    | 'nextRunTimesLocalFromUTC'       |
--- | 'LocalTime'| 'LocalTime'    | 'nextRunTimesLocal'              |
--- | 'ZonedTime'| 'LocalTime'    | 'nextRunTimesLocalFromZoned'     |
--- | 'UTCTime'  | 'ZonedTime'    | 'nextRunTimesZonedFromUTC'       |
--- | 'LocalTime'| 'ZonedTime'    | 'nextRunTimesZonedFromLocal'     |
--- | 'ZonedTime'| 'ZonedTime'    | 'nextRunTimesZoned'              |
+-- @
+-- Base input  Output      Function
+-- ----------------------------------------------
+-- UTCTime     UTCTime     nextRunTimesUTC
+-- LocalTime   UTCTime     nextRunTimesUTCFromLocal
+-- ZonedTime   UTCTime     nextRunTimesUTCFromZoned
+-- UTCTime     LocalTime   nextRunTimesLocalFromUTC
+-- LocalTime   LocalTime   nextRunTimesLocal
+-- ZonedTime   LocalTime   nextRunTimesLocalFromZoned
+-- UTCTime     ZonedTime   nextRunTimesZonedFromUTC
+-- LocalTime   ZonedTime   nextRunTimesZonedFromLocal
+-- ZonedTime   ZonedTime   nextRunTimesZoned
+-- @
 module AWS.EventBridge.Schedule
   ( -- * Schedule construction
     Schedule(..)
