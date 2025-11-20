@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog and this project adheres to
 Semantic Versioning.
 
+## [0.1.1.1] - 2025-11-20
+### Changed
+- Improved Haddock/README guidance for timezone-aware helpers, including a
+	rendered-friendly entrypoint walkthrough and base-vs-output reference table.
+
 ## [0.1.1.0] - 2025-11-20
 ### Added
 - `AWS.EventBridge.Schedule` module that pairs schedules with an IANA timezone
