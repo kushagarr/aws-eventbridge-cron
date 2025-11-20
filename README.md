@@ -16,6 +16,9 @@ Status: early preview. Expect small API tweaks before a `1.0.0` release.
 - Schedule introspection helpers: `scheduleKind` returns a `ScheduleKind`, and
   `isRecurring` distinguishes recurring (`cron`/`rate`) expressions from
   `at(...)` one-time schedules.
+- Timezone-aware helpers: `AWS.EventBridge.Schedule` pairs expressions with an
+  IANA timezone (via the `tz`/`tzdata` packages) and exposes `nextRunTimes`
+  variants for UTC, local, or fully-zoned outputs.
 - Extensive property-based test suite that mirrors the behaviour documented by
   AWS.
 
@@ -71,6 +74,65 @@ isRecurringExample :: Either String Bool
 isRecurringExample = isRecurring <$> parseCronText "at(2025-11-16T09:30:00)"
 -- Right False
 ```
+
+### Timezone-Aware Schedules
+
+EventBridge rules can set a schedule timezone. Use `AWS.EventBridge.Schedule` to
+bind an expression to a `TZLabel` so you can request run times in UTC, as local
+wall-clock values, or as `ZonedTime`s tagged with the appropriate offset.
+
+```haskell
+import AWS.EventBridge.Schedule
+import Data.Time (UTCTime(..), LocalTime, ZonedTime, fromGregorian)
+import Data.Time.Zones.All (TZLabel(..))
+
+baseUTC :: UTCTime
+baseUTC = UTCTime (fromGregorian 2025 11 1) 0
+
+zonedSchedule :: Either String Schedule
+zonedSchedule = scheduleFromText America__New_York "cron(0 9 * NOV ? 2025)"
+
+utcRuns :: Either String [UTCTime]
+utcRuns = nextRunTimesUTC <$> zonedSchedule <*> pure baseUTC <*> pure 2
+-- Right [2025-11-01 13:00:00 UTC,2025-11-02 14:00:00 UTC]
+
+localRuns :: Either String [LocalTime]
+localRuns = nextRunTimesLocalFromUTC <$> zonedSchedule <*> pure baseUTC <*> pure 2
+-- Right [2025-11-01 09:00:00,2025-11-02 09:00:00]
+
+zonedRuns :: Either String [ZonedTime]
+zonedRuns = nextRunTimesZonedFromUTC <$> zonedSchedule <*> pure baseUTC <*> pure 2
+-- Right [2025-11-01 09:00:00 EDT,2025-11-02 09:00:00 EST]
+```
+
+Every combination of base input (`UTCTime`, `LocalTime`, `ZonedTime`) and output
+form is available, so you can normalize timestamps at the edges of your system
+and avoid comparing values that silently belong to different timezones.
+
+### API Overview
+
+1. Parse using `parseCronText` (UTC) or `scheduleFromText` (timezone-aware).
+2. Wrap with `scheduleFromExpr`/`scheduleFromText` if you need timezone metadata.
+3. Choose an evaluation helper based on the base input you have and the output
+  you need. Prefer the primary trio (`nextRunTimesUTC`, `nextRunTimesLocal`,
+  `nextRunTimesZoned`) and reach for the conversion helpers when you want to
+  avoid manual conversions.
+
+| Base input  | Output      | Function                           |
+|-------------|-------------|------------------------------------|
+| `UTCTime`   | `UTCTime`   | `nextRunTimesUTC`                  |
+| `LocalTime` | `UTCTime`   | `nextRunTimesUTCFromLocal`         |
+| `ZonedTime` | `UTCTime`   | `nextRunTimesUTCFromZoned`         |
+| `UTCTime`   | `LocalTime` | `nextRunTimesLocalFromUTC`         |
+| `LocalTime` | `LocalTime` | `nextRunTimesLocal`                |
+| `ZonedTime` | `LocalTime` | `nextRunTimesLocalFromZoned`       |
+| `UTCTime`   | `ZonedTime` | `nextRunTimesZonedFromUTC`         |
+| `LocalTime` | `ZonedTime` | `nextRunTimesZonedFromLocal`       |
+| `ZonedTime` | `ZonedTime` | `nextRunTimesZoned`                |
+
+Use the conversion helpers when you already have a base timestamp in a specific
+representation and want the library to handle the translation for you (for
+example, UI-provided `LocalTime` that needs to be compared against UTC events).
 
 ### Error Reporting
 

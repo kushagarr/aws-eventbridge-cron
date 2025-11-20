@@ -9,6 +9,7 @@ import qualified AWS.EventBridge.YearsSpec as YearsSpec
 import qualified AWS.EventBridge.RateSpec as RateSpec
 import qualified AWS.EventBridge.OneTimeSpec as OneTimeSpec
 import qualified AWS.EventBridge.CronSpec as CronSpec
+import qualified AWS.EventBridge.ScheduleSpec as ScheduleSpec
 import Test.Tasty (defaultMain, testGroup)
 
 main :: IO ()
@@ -24,4 +25,5 @@ main =
       , RateSpec.tests
       , OneTimeSpec.tests
       , CronSpec.tests
+      , ScheduleSpec.tests
       ]

@@ -1,7 +1,7 @@
 cabal-version:      3.0
 
 name:               aws-eventbridge-cron
-version:            0.1.0.1
+version:            0.1.1.0
 synopsis:           AWS EventBridge cron, rate, and one-time parser with scheduler
 description:
   Parse AWS EventBridge cron, rate, and one-time expressions and compute
@@ -33,6 +33,7 @@ source-repository head
 library
   exposed-modules:
       AWS.EventBridge.Cron
+    , AWS.EventBridge.Schedule
   other-modules:
       AWS.EventBridge.DayOfMonth
     , AWS.EventBridge.DayOfWeek
@@ -53,6 +54,8 @@ library
     , megaparsec
     , text
     , time
+    , tz
+    , tzdata
 
 test-suite aws-eventbridge-cron-test
   type: exitcode-stdio-1.0
@@ -69,6 +72,8 @@ test-suite aws-eventbridge-cron-test
     , AWS.EventBridge.YearsSpec
     , AWS.EventBridge.RateSpec
     , AWS.EventBridge.CronSpec
+    , AWS.EventBridge.Schedule
+    , AWS.EventBridge.ScheduleSpec
     , AWS.EventBridge.OneTimeSpec
     , TestSupport
     , AWS.EventBridge.Cron
@@ -93,3 +98,5 @@ test-suite aws-eventbridge-cron-test
     , tasty-quickcheck >=0.10 && <0.11
     , text
     , time
+    , tz
+    , tzdata

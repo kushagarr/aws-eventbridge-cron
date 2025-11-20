@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog and this project adheres to
 Semantic Versioning.
 
+## [0.1.1.0] - 2025-11-20
+### Added
+- `AWS.EventBridge.Schedule` module that pairs schedules with an IANA timezone
+	(via the `tz`/`tzdata` packages) and exposes the full matrix of
+	`nextRunTimes` variants for UTC, local, and zoned outputs.
+- Smart constructors such as `scheduleFromText` plus helper variants
+	(`nextRunTimesUTCFromLocal`, `nextRunTimesZonedFromUTC`, etc.) documented with
+	Haddock examples.
+- Property-style regression tests in `ScheduleSpec` covering cron/one-time rate
+	conversions, DST transitions, and timezone-dependent outputs.
+- README examples describing timezone-aware workflows and feature list updates.
+
 ## [0.1.0.1] - 2025-11-17
 ### Added
 - `ScheduleKind`, `scheduleKind`, and `isRecurring` helpers for classifying parsed schedules without re-parsing downstream.
