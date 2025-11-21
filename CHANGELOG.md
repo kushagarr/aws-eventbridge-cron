@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog and this project adheres to
 Semantic Versioning.
 
+## [0.1.2.0] - 2025-11-21
+### Added
+- Convenience constructors (`scheduleFromExprIANA`, `scheduleFromTextIANA`, and
+	`parseCronTextWithIANA`) so callers can bind schedules using canonical IANA
+	timezone names without touching `TZLabel`.
+- Criterion benchmark suite (`cabal bench`) that exercises sparse/dense cron
+	workloads, rate schedules, and timezone-aware helpers to catch performance
+	regressions.
+
+### Changed
+- Optimised `futureCronTimes` to use difference lists and lazily compute only
+	the necessary day candidates, removing quadratic `++` chains and improving
+	large run queries by ~30%.
+- README now uses an HTML function matrix that renders correctly on Hackage,
+	adds foldable IANA examples, and mentions the benchmark workflow.
+- Enabled `tests: True` in `cabal.project` so editors and `cabal test` pick up
+	the suite without extra flags.
+
 ## [0.1.1.1] - 2025-11-20
 ### Changed
 - Improved Haddock/README guidance for timezone-aware helpers, including a
