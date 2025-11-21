@@ -71,6 +71,15 @@ tests = testGroup "schedule"
             ]
       fmap (map show) (nextRunTimesZonedFromUTC sched baseUtc 2) @?= Right expected
 
+    , testCase "scheduleFromTextIANA resolves canonical names" $ do
+        sched <- either assertFailure pure (scheduleFromTextIANA "America/New_York" "cron(0 9 * * ? *)")
+        scheduleZoneLabel sched @?= America__New_York
+
+    , testCase "scheduleFromTextIANA surfaces unknown names" $ do
+        case scheduleFromTextIANA "Mars/Base" "cron(0 0 * * ? *)" of
+          Left msg -> msg @?= "unknown IANA timezone: Mars/Base"
+          Right _ -> assertFailure "expected a failure for an unknown timezone"
+
     , testCase "parseCronTextWithZone aliases scheduleFromText" $ do
       let expr = "cron(0 0 1 1 ? 2025)"
       schedA <- either assertFailure pure (parseCronTextWithZone Asia__Kolkata expr)

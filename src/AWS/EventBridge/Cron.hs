@@ -28,6 +28,7 @@ import qualified Data.Text as T
 import Data.Time (UTCTime(..), Day, addUTCTime, utctDay)
 import Data.Time.Calendar (fromGregorian, toGregorian)
 import Data.Time.LocalTime (TimeOfDay(..), timeOfDayToTime)
+import Data.Monoid (Endo(..), appEndo)
 
 
 -- | EventBridge scheduling expression.
@@ -147,7 +148,7 @@ futureCronTimes minExpr hourExpr domExpr monExpr dowExpr yrExpr base limit
           baseDay = utctDay base
           (baseYear, baseMonth, baseDom) = toGregorian baseDay
 
-          collectYears :: [UTCTime] -> Int -> [Integer] -> Either String ([UTCTime], Int)
+          collectYears :: Endo [UTCTime] -> Int -> [Integer] -> Either String (Endo [UTCTime], Int)
           collectYears acc count [] = Right (acc, count)
           collectYears acc count _ | count >= target = Right (acc, count)
           collectYears acc count (y:ys)
@@ -156,7 +157,7 @@ futureCronTimes minExpr hourExpr domExpr monExpr dowExpr yrExpr base limit
                 (acc', count') <- collectMonths acc count y monthCandidates
                 collectYears acc' count' ys
 
-          collectMonths :: [UTCTime] -> Int -> Integer -> [Int] -> Either String ([UTCTime], Int)
+          collectMonths :: Endo [UTCTime] -> Int -> Integer -> [Int] -> Either String (Endo [UTCTime], Int)
           collectMonths acc count _ [] = Right (acc, count)
           collectMonths acc count _ _ | count >= target = Right (acc, count)
           collectMonths acc count year (m:ms)
@@ -166,7 +167,7 @@ futureCronTimes minExpr hourExpr domExpr monExpr dowExpr yrExpr base limit
                 (acc', count') <- collectDays acc count year m days
                 collectMonths acc' count' year ms
 
-          collectDays :: [UTCTime] -> Int -> Integer -> Int -> [Int] -> Either String ([UTCTime], Int)
+          collectDays :: Endo [UTCTime] -> Int -> Integer -> Int -> [Int] -> Either String (Endo [UTCTime], Int)
           collectDays acc count _ _ [] = Right (acc, count)
           collectDays acc count _ _ _ | count >= target = Right (acc, count)
           collectDays acc count year month (d:ds)
@@ -180,7 +181,7 @@ futureCronTimes minExpr hourExpr domExpr monExpr dowExpr yrExpr base limit
                       EQ -> dropWhile (< base) dayTimes
                       GT -> dayTimes
                     selected = take remaining filteredTimes
-                    acc' = acc ++ selected
+                    acc' = acc <> Endo (selected ++)
                     count' = count + length selected
                  in if count' >= target
                       then Right (acc', count')
@@ -194,13 +195,12 @@ futureCronTimes minExpr hourExpr domExpr monExpr dowExpr yrExpr base limit
             ]
 
           daysFor :: Integer -> Int -> Either String [Int]
-          daysFor year month = do
-            domDays <- evaluateDayOfMonthT year month domExpr
-            dowDays <- evaluateDayOfWeekT year month dowExpr
-            pure $ if domIsQuestion then dowDays else domDays
+          daysFor year month
+            | domIsQuestion = evaluateDayOfWeekT year month dowExpr
+            | otherwise = evaluateDayOfMonthT year month domExpr
 
-      (results, _) <- collectYears [] 0 yearCandidates
-      pure results
+      (results, _) <- collectYears mempty 0 yearCandidates
+      pure (appEndo results [])
   where
     domIsQuestion = isDomQuestion domExpr
     dowIsQuestion = isDowQuestion dowExpr

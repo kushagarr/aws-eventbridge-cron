@@ -2,3 +2,5 @@ packages: .
 
 -- Pin to a recent Hackage index-state for reproducibility; adjust as needed.
 index-state: 2025-11-16T00:00:00Z
+
+tests: True

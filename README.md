@@ -19,6 +19,8 @@ Status: early preview. Expect small API tweaks before a `1.0.0` release.
 - Timezone-aware helpers: `AWS.EventBridge.Schedule` pairs expressions with an
   IANA timezone (via the `tz`/`tzdata` packages) and exposes `nextRunTimes`
   variants for UTC, local, or fully-zoned outputs.
+- Convenience constructors accept canonical IANA names (`"America/New_York"`)
+  in addition to the generated `TZLabel` constructors.
 - Extensive property-based test suite that mirrors the behaviour documented by
   AWS.
 
@@ -118,21 +120,86 @@ and avoid comparing values that silently belong to different timezones.
   `nextRunTimesZoned`) and reach for the conversion helpers when you want to
   avoid manual conversions.
 
-| Base input  | Output      | Function                           |
-|-------------|-------------|------------------------------------|
-| `UTCTime`   | `UTCTime`   | `nextRunTimesUTC`                  |
-| `LocalTime` | `UTCTime`   | `nextRunTimesUTCFromLocal`         |
-| `ZonedTime` | `UTCTime`   | `nextRunTimesUTCFromZoned`         |
-| `UTCTime`   | `LocalTime` | `nextRunTimesLocalFromUTC`         |
-| `LocalTime` | `LocalTime` | `nextRunTimesLocal`                |
-| `ZonedTime` | `LocalTime` | `nextRunTimesLocalFromZoned`       |
-| `UTCTime`   | `ZonedTime` | `nextRunTimesZonedFromUTC`         |
-| `LocalTime` | `ZonedTime` | `nextRunTimesZonedFromLocal`       |
-| `ZonedTime` | `ZonedTime` | `nextRunTimesZoned`                |
+<table>
+  <thead>
+    <tr>
+      <th>Base input</th>
+      <th>Output</th>
+      <th>Function</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>UTCTime</code></td><td><code>UTCTime</code></td><td><code>nextRunTimesUTC</code></td></tr>
+    <tr><td><code>LocalTime</code></td><td><code>UTCTime</code></td><td><code>nextRunTimesUTCFromLocal</code></td></tr>
+    <tr><td><code>ZonedTime</code></td><td><code>UTCTime</code></td><td><code>nextRunTimesUTCFromZoned</code></td></tr>
+    <tr><td><code>UTCTime</code></td><td><code>LocalTime</code></td><td><code>nextRunTimesLocalFromUTC</code></td></tr>
+    <tr><td><code>LocalTime</code></td><td><code>LocalTime</code></td><td><code>nextRunTimesLocal</code></td></tr>
+    <tr><td><code>ZonedTime</code></td><td><code>LocalTime</code></td><td><code>nextRunTimesLocalFromZoned</code></td></tr>
+    <tr><td><code>UTCTime</code></td><td><code>ZonedTime</code></td><td><code>nextRunTimesZonedFromUTC</code></td></tr>
+    <tr><td><code>LocalTime</code></td><td><code>ZonedTime</code></td><td><code>nextRunTimesZonedFromLocal</code></td></tr>
+    <tr><td><code>ZonedTime</code></td><td><code>ZonedTime</code></td><td><code>nextRunTimesZoned</code></td></tr>
+  </tbody>
+</table>
 
 Use the conversion helpers when you already have a base timestamp in a specific
 representation and want the library to handle the translation for you (for
 example, UI-provided `LocalTime` that needs to be compared against UTC events).
+
+#### Working With IANA Names
+
+Prefer `scheduleFromText`/`scheduleFromExpr` when compiled code can depend on
+`TZLabel` constructors (they offer total coverage at compile time). When
+configurations or API payloads give you canonical timezone names, switch to the
+IANA-aware wrappers:
+
+- `scheduleFromExprIANA :: Text -> CronExprT -> Either String Schedule`
+- `scheduleFromTextIANA :: Text -> Text -> Either String Schedule`
+- `parseCronTextWithIANA :: Text -> Text -> Either String Schedule`
+
+These helpers validate the provided timezone name against the bundled tz
+database and return `Left` if it is unknown, preventing silent fallbacks.
+
+<details>
+  <summary>Example: parse config payloads with canonical names</summary>
+
+```haskell
+import AWS.EventBridge.Schedule
+import Data.Text (Text)
+import Data.Time (LocalTime)
+
+mkScheduleFromConfig :: Text -> Text -> Either String Schedule
+mkScheduleFromConfig tzName exprText =
+  scheduleFromTextIANA tzName exprText
+
+example :: Either String [LocalTime]
+example = do
+  sched <- mkScheduleFromConfig "Asia/Kolkata" "cron(0 9 * * ? *)"
+  nextRunTimesLocal sched (read "2025-11-15 09:00:00" :: LocalTime) 2
+```
+
+</details>
+
+<details>
+  <summary>Example: fall back to a default timezone</summary>
+
+```haskell
+import AWS.EventBridge.Schedule
+import Data.Maybe (fromMaybe)
+import Data.Text (Text)
+import Data.Time (UTCTime)
+
+resolveSchedule :: Maybe Text -> Text -> Either String Schedule
+resolveSchedule maybeName exprText = do
+  let tzName = fromMaybe "UTC" maybeName
+  scheduleFromTextIANA tzName exprText
+
+fromApi :: Either String [UTCTime]
+fromApi = do
+  sched <- resolveSchedule (Just "America/Los_Angeles") "cron(0 9 * * ? *)"
+  nextRunTimesUTC sched (read "2025-11-01 17:00:00 UTC" :: UTCTime) 1
+```
+
+</details>
 
 ### Error Reporting
 
@@ -162,8 +229,13 @@ See `test/AWS/EventBridge/CronSpec.hs` for more examples and edge cases.
 ```bash
 cabal build
 cabal test
+cabal bench
 cabal haddock --open
 ```
+
+`cabal bench` executes a Criterion suite that profiles cron-heavy workloads,
+rate schedules, and timezone-aware helpers so you can gauge regression risk
+when modifying the evaluator.
 
 ## Contributing
 

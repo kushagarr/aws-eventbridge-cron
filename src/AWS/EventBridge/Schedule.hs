@@ -40,8 +40,11 @@ module AWS.EventBridge.Schedule
   ( -- * Schedule construction
     Schedule(..)
   , scheduleFromExpr
+  , scheduleFromExprIANA
   , scheduleFromText
+  , scheduleFromTextIANA
   , parseCronTextWithZone
+  , parseCronTextWithIANA
     -- * Primary evaluation helpers
   , nextRunTimesUTC
   , nextRunTimesLocal
@@ -63,6 +66,8 @@ import AWS.EventBridge.Cron
   , scheduleKind
   )
 import Data.Text (Text)
+import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time
   ( LocalTime(..)
   , ZonedTime(..)
@@ -77,7 +82,7 @@ import Data.Time.Zones
   , timeZoneForUTCTime
   , utcToLocalTimeTZ
   )
-import Data.Time.Zones.All (TZLabel(..), tzByLabel)
+import Data.Time.Zones.All (TZLabel(..), fromTZName, tzByLabel)
 
 -- | Scheduling expression paired with its IANA timezone.
 --
@@ -102,6 +107,14 @@ scheduleFromExpr label expr = Schedule
   , scheduleZoneLabel = label
   }
 
+-- | Construct a 'Schedule' directly from an IANA location name such as
+-- @"America/New_York"@. This is a convenience wrapper over
+-- 'scheduleFromExpr' for callers that already store timezone identifiers as
+-- strings. Returns 'Left' when the name is unknown to the bundled tz database.
+scheduleFromExprIANA :: Text -> CronExprT -> Either String Schedule
+scheduleFromExprIANA tzName expr =
+  scheduleFromExpr <$> resolveTZLabel tzName <*> pure expr
+
 -- | Parse an EventBridge expression and attach a timezone in the same step.
 --
 -- >>> :{
@@ -115,9 +128,27 @@ scheduleFromText :: TZLabel -> Text -> Either String Schedule
 scheduleFromText label input =
   fmap (scheduleFromExpr label) (parseCronText input)
 
+-- | Parse an EventBridge expression and attach a timezone via its IANA name
+-- (for example @"Asia/Kolkata"@). This helper surfaces nicer ergonomics for
+-- API payloads or configuration files that keep the canonical string form.
+--
+-- >>> let base = read "2025-11-16 03:30:00 UTC" :: UTCTime
+-- >>> scheduleFromTextIANA "Asia/Kolkata" "cron(0 9 ? NOV SUN 2025)" >>= \sched -> nextRunTimesUTC sched base 1
+-- Right [2025-11-16 03:30:00 UTC]
+scheduleFromTextIANA :: Text -> Text -> Either String Schedule
+scheduleFromTextIANA tzName input =
+  resolveTZLabel tzName >>= \label -> scheduleFromText label input
+
 -- | Backwards-compatible alias for 'scheduleFromText'.
 parseCronTextWithZone :: TZLabel -> Text -> Either String Schedule
 parseCronTextWithZone = scheduleFromText
+
+-- | Alias for 'scheduleFromTextIANA'.
+--
+-- >>> parseCronTextWithIANA "America/New_York" "cron(0 9 * * ? *)" >>= \sched -> nextRunTimesLocal sched (read "2025-11-01 08:30:00" :: LocalTime) 1
+-- Right [2025-11-01 09:00:00]
+parseCronTextWithIANA :: Text -> Text -> Either String Schedule
+parseCronTextWithIANA = scheduleFromTextIANA
 
 -- | Local-time primary helper.
 --
@@ -264,3 +295,9 @@ localToZoned schedule local =
       localWall = utcToLocalTimeTZ zone utcVal
       tzInfo = timeZoneForUTCTime zone utcVal
    in ZonedTime localWall tzInfo
+
+resolveTZLabel :: Text -> Either String TZLabel
+resolveTZLabel tzName =
+  maybe (Left errMsg) Right (fromTZName (encodeUtf8 tzName))
+  where
+    errMsg = "unknown IANA timezone: " <> T.unpack tzName
