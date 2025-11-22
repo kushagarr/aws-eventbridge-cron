@@ -115,29 +115,29 @@ parseCronExpr = do
 -- The list always includes occurrences at or after the base time, limited to the
 -- requested count. Errors bubble up if the expression cannot produce valid timestamps
 -- (for example conflicting day-of-month/day-of-week fields).
-nextRunTimes :: CronExprT -> UTCTime -> Int -> Either String [UTCTime]
-nextRunTimes expr base limit =
+nextRunTimes :: UTCTime -> Int -> CronExprT -> Either String [UTCTime]
+nextRunTimes base limit expr =
   case expr of
-    RateExpr r -> futureRateTimes r base limit
-    OneTimeExpr o  -> futureOneTime o base limit
-    CronExpr m h dom mon dow yr -> futureCronTimes m h dom mon dow yr base limit
+    RateExpr r -> futureRateTimes base limit r
+    OneTimeExpr o  -> futureOneTime base limit o
+    CronExpr m h dom mon dow yr -> futureCronTimes limit m h dom mon dow yr base
 
 
-futureOneTime :: OneTimeExprT -> UTCTime -> Int -> Either String [UTCTime]
-futureOneTime expr base limit
+futureOneTime :: UTCTime -> Int -> OneTimeExprT -> Either String [UTCTime]
+futureOneTime base limit expr
   | t >= base && limit > 0 = Right [t]
   | otherwise              = Right []
   where
     t = evaluateOneTimeT expr
 
 
-futureRateTimes :: RateExprT -> UTCTime -> Int -> Either String [UTCTime]
-futureRateTimes expr base limit = case evaluateRateT expr of
+futureRateTimes :: UTCTime -> Int -> RateExprT -> Either String [UTCTime]
+futureRateTimes base limit expr = case evaluateRateT expr of
   Left err -> Left err
   Right delta -> Right $ take limit $ iterate (addUTCTime delta) base
 
-futureCronTimes :: MinutesExprT -> HoursExprT -> DayOfMonthExprT -> MonthsExprT -> DayOfWeekExprT -> YearsExprT -> UTCTime -> Int -> Either String [UTCTime]
-futureCronTimes minExpr hourExpr domExpr monExpr dowExpr yrExpr base limit
+futureCronTimes :: Int -> MinutesExprT -> HoursExprT -> DayOfMonthExprT -> MonthsExprT -> DayOfWeekExprT -> YearsExprT -> UTCTime -> Either String [UTCTime]
+futureCronTimes limit minExpr hourExpr domExpr monExpr dowExpr yrExpr base
   | domIsQuestion == dowIsQuestion = Left "day-of-month and day-of-week fields must use '?' in exactly one position"
   | otherwise = do
       minutes <- evaluateMinuteT minExpr

@@ -127,7 +127,7 @@ scheduleFromExprIANA tzName expr =
 -- let base = read "2025-11-16 03:30:00 UTC" :: UTCTime
 -- in case scheduleFromText Asia__Kolkata "cron(0 9 ? NOV SUN 2025)" of
 --      Left err -> Left err
---      Right sched -> nextRunTimesUTC sched base 1
+--      Right sched -> nextRunTimesUTC base 1 sched
 -- :}
 -- Right [2025-11-16 03:30:00 UTC]
 scheduleFromText :: TZLabel -> Text -> Either String Schedule
@@ -139,7 +139,7 @@ scheduleFromText label input =
 -- API payloads or configuration files that keep the canonical string form.
 --
 -- >>> let base = read "2025-11-16 03:30:00 UTC" :: UTCTime
--- >>> scheduleFromTextIANA "Asia/Kolkata" "cron(0 9 ? NOV SUN 2025)" >>= \sched -> nextRunTimesUTC sched base 1
+-- >>> scheduleFromTextIANA "Asia/Kolkata" "cron(0 9 ? NOV SUN 2025)" >>= \sched -> nextRunTimesUTC base 1 sched
 -- Right [2025-11-16 03:30:00 UTC]
 scheduleFromTextIANA :: Text -> Text -> Either String Schedule
 scheduleFromTextIANA tzName input =
@@ -151,7 +151,7 @@ parseCronTextWithZone = scheduleFromText
 
 -- | Alias for 'scheduleFromTextIANA'.
 --
--- >>> parseCronTextWithIANA "America/New_York" "cron(0 9 * * ? *)" >>= \sched -> nextRunTimesLocal sched (read "2025-11-01 08:30:00" :: LocalTime) 1
+-- >>> parseCronTextWithIANA "America/New_York" "cron(0 9 * * ? *)" >>= \sched -> nextRunTimesLocal (read "2025-11-01 08:30:00" :: LocalTime) 1 sched
 -- Right [2025-11-01 09:00:00]
 parseCronTextWithIANA :: Text -> Text -> Either String Schedule
 parseCronTextWithIANA = scheduleFromTextIANA
@@ -164,10 +164,10 @@ parseCronTextWithIANA = scheduleFromTextIANA
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 08:00:00" :: LocalTime
--- >>> nextRunTimesLocal sched base 1
+-- >>> nextRunTimesLocal base 1 sched
 -- Right [2025-11-01 09:00:00]
-nextRunTimesLocal :: Schedule -> LocalTime -> Int -> Either String [LocalTime]
-nextRunTimesLocal = scheduleLocalOccurrences
+nextRunTimesLocal :: LocalTime -> Int -> Schedule -> Either String [LocalTime]
+nextRunTimesLocal base limit schedule = scheduleLocalOccurrences schedule base limit
 
 -- | Conversion helper.
 --
@@ -177,10 +177,11 @@ nextRunTimesLocal = scheduleLocalOccurrences
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 12:00:00 UTC" :: UTCTime
--- >>> nextRunTimesLocalFromUTC sched base 1
+-- >>> nextRunTimesLocalFromUTC base 1 sched
 -- Right [2025-11-01 09:00:00]
-nextRunTimesLocalFromUTC :: Schedule -> UTCTime -> Int -> Either String [LocalTime]
-nextRunTimesLocalFromUTC schedule base = scheduleLocalOccurrences schedule (utcToLocalTimeTZ (scheduleZone schedule) base)
+nextRunTimesLocalFromUTC :: UTCTime -> Int -> Schedule -> Either String [LocalTime]
+nextRunTimesLocalFromUTC base limit schedule =
+  scheduleLocalOccurrences schedule (utcToLocalTimeTZ (scheduleZone schedule) base) limit
 
 -- | Conversion helper.
 --
@@ -191,10 +192,11 @@ nextRunTimesLocalFromUTC schedule base = scheduleLocalOccurrences schedule (utcT
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 09:00:00-04:00" :: ZonedTime
--- >>> nextRunTimesLocalFromZoned sched base 2
+-- >>> nextRunTimesLocalFromZoned base 2 sched
 -- Right [2025-11-01 09:00:00,2025-11-02 09:00:00]
-nextRunTimesLocalFromZoned :: Schedule -> ZonedTime -> Int -> Either String [LocalTime]
-nextRunTimesLocalFromZoned schedule base = scheduleLocalOccurrences schedule (utcToLocalTimeTZ (scheduleZone schedule) (zonedTimeToUTC base))
+nextRunTimesLocalFromZoned :: ZonedTime -> Int -> Schedule -> Either String [LocalTime]
+nextRunTimesLocalFromZoned base limit schedule =
+  scheduleLocalOccurrences schedule (utcToLocalTimeTZ (scheduleZone schedule) (zonedTimeToUTC base)) limit
 
 -- | UTC primary helper.
 --
@@ -203,11 +205,11 @@ nextRunTimesLocalFromZoned schedule base = scheduleLocalOccurrences schedule (ut
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 12:30:00 UTC" :: UTCTime
--- >>> nextRunTimesUTC sched base 1
+-- >>> nextRunTimesUTC base 1 sched
 -- Right [2025-11-01 13:00:00 UTC]
-nextRunTimesUTC :: Schedule -> UTCTime -> Int -> Either String [UTCTime]
-nextRunTimesUTC schedule base limit =
-  fmap (map (localToUTC schedule)) (nextRunTimesLocalFromUTC schedule base limit)
+nextRunTimesUTC :: UTCTime -> Int -> Schedule -> Either String [UTCTime]
+nextRunTimesUTC base limit schedule =
+  fmap (map (localToUTC schedule)) (nextRunTimesLocalFromUTC base limit schedule)
 
 -- | Conversion helper.
 --
@@ -216,11 +218,11 @@ nextRunTimesUTC schedule base limit =
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 08:00:00" :: LocalTime
--- >>> nextRunTimesUTCFromLocal sched base 1
+-- >>> nextRunTimesUTCFromLocal base 1 sched
 -- Right [2025-11-01 13:00:00 UTC]
-nextRunTimesUTCFromLocal :: Schedule -> LocalTime -> Int -> Either String [UTCTime]
-nextRunTimesUTCFromLocal schedule base limit =
-  fmap (map (localToUTC schedule)) (nextRunTimesLocal schedule base limit)
+nextRunTimesUTCFromLocal :: LocalTime -> Int -> Schedule -> Either String [UTCTime]
+nextRunTimesUTCFromLocal base limit schedule =
+  fmap (map (localToUTC schedule)) (nextRunTimesLocal base limit schedule)
 
 -- | Conversion helper.
 --
@@ -230,11 +232,11 @@ nextRunTimesUTCFromLocal schedule base limit =
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 09:00:00-04:00" :: ZonedTime
--- >>> nextRunTimesUTCFromZoned sched base 1
+-- >>> nextRunTimesUTCFromZoned base 1 sched
 -- Right [2025-11-01 13:00:00 UTC]
-nextRunTimesUTCFromZoned :: Schedule -> ZonedTime -> Int -> Either String [UTCTime]
-nextRunTimesUTCFromZoned schedule base limit =
-  fmap (map (localToUTC schedule)) (nextRunTimesLocalFromZoned schedule base limit)
+nextRunTimesUTCFromZoned :: ZonedTime -> Int -> Schedule -> Either String [UTCTime]
+nextRunTimesUTCFromZoned base limit schedule =
+  fmap (map (localToUTC schedule)) (nextRunTimesLocalFromZoned base limit schedule)
 
 -- | Zoned-time primary helper.
 --
@@ -245,11 +247,11 @@ nextRunTimesUTCFromZoned schedule base limit =
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 09:00:00-04:00" :: ZonedTime
--- >>> nextRunTimesZoned sched base 2
+-- >>> nextRunTimesZoned base 2 sched
 -- Right [2025-11-01 09:00:00-04:00,2025-11-02 09:00:00-05:00]
-nextRunTimesZoned :: Schedule -> ZonedTime -> Int -> Either String [ZonedTime]
-nextRunTimesZoned schedule base limit =
-  fmap (map (localToZoned schedule)) (nextRunTimesLocalFromZoned schedule base limit)
+nextRunTimesZoned :: ZonedTime -> Int -> Schedule -> Either String [ZonedTime]
+nextRunTimesZoned base limit schedule =
+  fmap (map (localToZoned schedule)) (nextRunTimesLocalFromZoned base limit schedule)
 
 -- | Conversion helper.
 --
@@ -257,11 +259,11 @@ nextRunTimesZoned schedule base limit =
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 12:30:00 UTC" :: UTCTime
--- >>> nextRunTimesZonedFromUTC sched base 2
+-- >>> nextRunTimesZonedFromUTC base 2 sched
 -- Right [2025-11-01 09:00:00-04:00,2025-11-02 09:00:00-05:00]
-nextRunTimesZonedFromUTC :: Schedule -> UTCTime -> Int -> Either String [ZonedTime]
-nextRunTimesZonedFromUTC schedule base limit =
-  fmap (map (localToZoned schedule)) (nextRunTimesLocalFromUTC schedule base limit)
+nextRunTimesZonedFromUTC :: UTCTime -> Int -> Schedule -> Either String [ZonedTime]
+nextRunTimesZonedFromUTC base limit schedule =
+  fmap (map (localToZoned schedule)) (nextRunTimesLocalFromUTC base limit schedule)
 
 -- | Conversion helper.
 --
@@ -269,21 +271,21 @@ nextRunTimesZonedFromUTC schedule base limit =
 --
 -- >>> let Right sched = scheduleFromText America__New_York "cron(0 9 * * ? *)"
 -- >>> let base = read "2025-11-01 09:00:00" :: LocalTime
--- >>> nextRunTimesZonedFromLocal sched base 1
+-- >>> nextRunTimesZonedFromLocal base 1 sched
 -- Right [2025-11-01 09:00:00-04:00]
-nextRunTimesZonedFromLocal :: Schedule -> LocalTime -> Int -> Either String [ZonedTime]
-nextRunTimesZonedFromLocal schedule base limit =
-  fmap (map (localToZoned schedule)) (nextRunTimesLocal schedule base limit)
+nextRunTimesZonedFromLocal :: LocalTime -> Int -> Schedule -> Either String [ZonedTime]
+nextRunTimesZonedFromLocal base limit schedule =
+  fmap (map (localToZoned schedule)) (nextRunTimesLocal base limit schedule)
 
 scheduleLocalOccurrences :: Schedule -> LocalTime -> Int -> Either String [LocalTime]
 scheduleLocalOccurrences sched@Schedule{..} base limit =
   case scheduleKind scheduleExpr of
     RateSchedule -> do
       let baseUtc = localToUTC sched base
-      timesUtc <- nextRunTimes scheduleExpr baseUtc limit
+      timesUtc <- nextRunTimes baseUtc limit scheduleExpr
       pure (map (utcToLocalTimeTZ scheduleZone) timesUtc)
     _ ->
-      fmap (map utcToLocalNaive) (nextRunTimes scheduleExpr (localToNaiveUTC base) limit)
+      fmap (map utcToLocalNaive) (nextRunTimes (localToNaiveUTC base) limit scheduleExpr)
 
 localToNaiveUTC :: LocalTime -> UTCTime
 localToNaiveUTC (LocalTime day tod) = UTCTime day (timeOfDayToTime tod)

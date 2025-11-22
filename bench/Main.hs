@@ -29,11 +29,11 @@ main = defaultMain
 
 runCron :: CronExprT -> Int -> [UTCTime]
 runCron expr limit =
-  forceRight "nextRunTimes" $ nextRunTimes expr cronBase limit
+  forceRight "nextRunTimes" $ nextRunTimes cronBase limit expr
 
 runSchedule :: Schedule -> Int -> [LocalTime]
 runSchedule sched limit =
-  forceRight "nextRunTimesLocal" $ nextRunTimesLocal sched scheduleBase limit
+  forceRight "nextRunTimesLocal" $ nextRunTimesLocal scheduleBase limit sched
 
 cronBase :: UTCTime
 cronBase = UTCTime (fromGregorian 2025 1 1) (secondsToDiffTime (5 * 3600))

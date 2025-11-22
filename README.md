@@ -34,7 +34,7 @@ Or add the package to your component:
 
 ```cabal
 build-depends:
-    aws-eventbridge-cron >= 0.1 && < 0.2
+  aws-eventbridge-cron >= 0.2 && < 0.3
 ```
 
 ## Quick Start
@@ -48,9 +48,8 @@ base :: UTCTime
 base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 0 0))
 
 example :: Either String [UTCTime]
-example = do
-  expr <- parseCronText "cron(0/15 9 ? NOV SUN 2025)"
-  nextRunTimes expr base 4
+example =
+  parseCronText "cron(0/15 9 ? NOV SUN 2025)" >>= nextRunTimes base 4
 -- Right [2025-11-16 09:00:00 UTC, 2025-11-16 09:15:00 UTC, ...]
 ```
 
@@ -58,14 +57,12 @@ The parser also accepts `rate(...)` and `at(...)` expressions:
 
 ```haskell
 rateExample :: Either String [UTCTime]
-rateExample = do
-  expr <- parseCronText "rate(10 minutes)"
-  nextRunTimes expr base 3
+rateExample =
+  parseCronText "rate(10 minutes)" >>= nextRunTimes base 3
 
 atExample :: Either String [UTCTime]
-atExample = do
-  expr <- parseCronText "at(2025-11-16T09:30:00)"
-  nextRunTimes expr base 5
+atExample =
+  parseCronText "at(2025-11-16T09:30:00)" >>= nextRunTimes base 5
 
 -- Introspect the parsed expression without re-parsing downstream.
 kindExample :: Either String ScheduleKind
@@ -95,15 +92,15 @@ zonedSchedule :: Either String Schedule
 zonedSchedule = scheduleFromText America__New_York "cron(0 9 * NOV ? 2025)"
 
 utcRuns :: Either String [UTCTime]
-utcRuns = nextRunTimesUTC <$> zonedSchedule <*> pure baseUTC <*> pure 2
+utcRuns = zonedSchedule >>= nextRunTimesUTC baseUTC 2
 -- Right [2025-11-01 13:00:00 UTC,2025-11-02 14:00:00 UTC]
 
 localRuns :: Either String [LocalTime]
-localRuns = nextRunTimesLocalFromUTC <$> zonedSchedule <*> pure baseUTC <*> pure 2
+localRuns = zonedSchedule >>= nextRunTimesLocalFromUTC baseUTC 2
 -- Right [2025-11-01 09:00:00,2025-11-02 09:00:00]
 
 zonedRuns :: Either String [ZonedTime]
-zonedRuns = nextRunTimesZonedFromUTC <$> zonedSchedule <*> pure baseUTC <*> pure 2
+zonedRuns = zonedSchedule >>= nextRunTimesZonedFromUTC baseUTC 2
 -- Right [2025-11-01 09:00:00 EDT,2025-11-02 09:00:00 EST]
 ```
 
@@ -174,7 +171,7 @@ mkScheduleFromConfig tzName exprText =
 example :: Either String [LocalTime]
 example = do
   sched <- mkScheduleFromConfig "Asia/Kolkata" "cron(0 9 * * ? *)"
-  nextRunTimesLocal sched (read "2025-11-15 09:00:00" :: LocalTime) 2
+  nextRunTimesLocal (read "2025-11-15 09:00:00" :: LocalTime) 2 sched
 ```
 
 </details>
@@ -196,7 +193,7 @@ resolveSchedule maybeName exprText = do
 fromApi :: Either String [UTCTime]
 fromApi = do
   sched <- resolveSchedule (Just "America/Los_Angeles") "cron(0 9 * * ? *)"
-  nextRunTimesUTC sched (read "2025-11-01 17:00:00 UTC" :: UTCTime) 1
+  nextRunTimesUTC (read "2025-11-01 17:00:00 UTC" :: UTCTime) 1 sched
 ```
 
 </details>

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog and this project adheres to
 Semantic Versioning.
 
+## [0.2.0.0] - 2025-11-22
+### Changed
+- Reordered `nextRunTimes` and all schedule helper signatures to accept `(base -> limit -> schedule/expr)` so callers can compose with `>>=`/`fmap` without lambdas. This is a breaking change for all call sites, including the exported zone-aware helpers and benchmark functions.
+### Fixed
+- README, Haddocks, tests, and benchmarks now show the new argument order to prevent confusion when following examples.
+
 ## [0.1.2.1] - 2025-11-22
 ### Added
 - `Show` instance for `Schedule` to facilitate REPL debugging (displays the expression and timezone label).

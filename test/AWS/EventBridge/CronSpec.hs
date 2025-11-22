@@ -29,7 +29,7 @@ manualTests = testGroup "manual"
   , testCase "next run times rate" $ do
       let base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 0 0))
       rateExpr <- expectParseWith "rate" parseCronText "rate(5 minutes)"
-      nextRunTimes rateExpr base 3
+      nextRunTimes base 3 rateExpr
         @?= Right
           [ base
           , addMinutes base 5
@@ -38,12 +38,12 @@ manualTests = testGroup "manual"
   , testCase "next run times one-time" $ do
       let base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 0 0))
       oneTimeExpr <- expectParseWith "one-time" parseCronText "at(2025-11-16T09:30:00)"
-      nextRunTimes oneTimeExpr base 1
+      nextRunTimes base 1 oneTimeExpr
         @?= Right [UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 30 0))]
   , testCase "next run times cron" $ do
       let base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 0 0))
       cronExpr <- expectParseWith "cron" parseCronText "cron(0/15 9 ? NOV SUN 2025)"
-      nextRunTimes cronExpr base 4
+      nextRunTimes base 4 cronExpr
         @?= Right
           [ UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 0 0))
           , UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 15 0))
@@ -53,14 +53,14 @@ manualTests = testGroup "manual"
   , testCase "cron day-of-month evaluated when day-of-week '?'" $ do
       let base = UTCTime (fromGregorian 2025 11 1) (timeOfDayToTime (TimeOfDay 8 0 0))
       cronExpr <- expectParseWith "cron" parseCronText "cron(0 9 5 NOV ? 2025)"
-      nextRunTimes cronExpr base 2
+      nextRunTimes base 2 cronExpr
         @?= Right
           [ UTCTime (fromGregorian 2025 11 5) (timeOfDayToTime (TimeOfDay 9 0 0))
           ]
   , testCase "cron skips intraday times earlier than base" $ do
       let base = UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 7 30))
       cronExpr <- expectParseWith "cron" parseCronText "cron(0/15 9 ? NOV SUN 2025)"
-      nextRunTimes cronExpr base 3
+      nextRunTimes base 3 cronExpr
         @?= Right
           [ UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 15 0))
           , UTCTime (fromGregorian 2025 11 16) (timeOfDayToTime (TimeOfDay 9 30 0))
@@ -69,19 +69,19 @@ manualTests = testGroup "manual"
   , testCase "cron spans multiple allowed years" $ do
       let base = UTCTime (fromGregorian 2026 12 31) (timeOfDayToTime (TimeOfDay 23 0 0))
       cronExpr <- expectParseWith "cron" parseCronText "cron(0 0 1 JAN ? 2027-2028)"
-      nextRunTimes cronExpr base 2
+      nextRunTimes base 2 cronExpr
         @?= Right
           [ UTCTime (fromGregorian 2027 1 1) (timeOfDayToTime (TimeOfDay 0 0 0))
           , UTCTime (fromGregorian 2028 1 1) (timeOfDayToTime (TimeOfDay 0 0 0))
           ]
   , testCase "invalid day fields combination" $ do
       cronExpr <- expectParseWith "cron" parseCronText "cron(0 0 1 * 2 2025)"
-      nextRunTimes cronExpr (UTCTime (fromGregorian 2025 1 1) 0) 1
+      nextRunTimes (UTCTime (fromGregorian 2025 1 1) 0) 1 cronExpr
         @?= Left "day-of-month and day-of-week fields must use '?' in exactly one position"
   , testCase "invalid rate" $ do
       rateExpr <- expectParseWith "rate" parseCronText "rate(0 minutes)"
       let base = UTCTime (fromGregorian 2025 1 1) 0
-      nextRunTimes rateExpr base 1
+      nextRunTimes base 1 rateExpr
         @?= Left "invalid rate minutes: 0 (expected 1..31536000)"
   , testCase "invalid one-time" $
       assertLeft (parseCronText "at(2025-13-01T00:00:00)")
@@ -152,7 +152,7 @@ propRateMonotonic =
      in case parseCronText ("rate(" <> T.pack (show minutes) <> " minutes)") of
           Left err -> QC.counterexample ("rate parse failed: " <> err) False
           Right rateExpr ->
-            case nextRunTimes rateExpr base 5 of
+            case nextRunTimes base 5 rateExpr of
               Left err -> QC.counterexample ("schedule failed: " <> err) False
               Right ts -> QC.counterexample (show ts) (sorted ts)
   where
@@ -165,7 +165,7 @@ propCronLimit =
      in case parseCronText "cron(0/30 9 ? NOV SUN 2025)" of
           Left err -> QC.counterexample ("cron parse failed: " <> err) False
           Right cronExpr ->
-            case nextRunTimes cronExpr base limit of
+            case nextRunTimes base limit cronExpr of
               Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
               Right ts -> QC.counterexample (show ts) (length ts <= limit)
 
@@ -176,7 +176,7 @@ propCronMonotonic =
      in case parseCronText "cron(0/15 9 ? NOV SUN 2025)" of
           Left err -> QC.counterexample ("cron parse failed: " <> err) False
           Right cronExpr ->
-            case nextRunTimes cronExpr base limit of
+            case nextRunTimes base limit cronExpr of
               Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
               Right ts -> QC.counterexample (show ts) (nonDecreasing ts && all (>= base) ts)
   where
@@ -191,7 +191,7 @@ propCronDomQuestionUsesDow =
         case evaluateDayOfWeekT year month dowExpr of
           Left err -> QC.counterexample ("day-of-week evaluation failed: " <> err) False
           Right allowedDays ->
-            case nextRunTimes cronExpr base limit of
+            case nextRunTimes base limit cronExpr of
               Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
               Right ts ->
                 let days = map (thirdOf . toGregorian . utctDay) ts
@@ -209,7 +209,7 @@ propCronDowQuestionUsesDom =
         case evaluateDayOfMonthT year month domExpr of
           Left err -> QC.counterexample ("day-of-month evaluation failed: " <> err) False
           Right allowedDays ->
-            case nextRunTimes cronExpr base limit of
+            case nextRunTimes base limit cronExpr of
               Left err -> QC.counterexample ("cron evaluation failed: " <> err) False
               Right ts ->
                 let days = map (thirdOf . toGregorian . utctDay) ts
