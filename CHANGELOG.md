@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog and this project adheres to
 Semantic Versioning.
 
+## [0.1.2.1] - 2025-11-22
+### Added
+- `Show` instance for `Schedule` to facilitate REPL debugging (displays the expression and timezone label).
+
 ## [0.1.2.0] - 2025-11-21
 ### Added
 - Convenience constructors (`scheduleFromExprIANA`, `scheduleFromTextIANA`, and

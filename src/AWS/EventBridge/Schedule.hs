@@ -95,6 +95,12 @@ data Schedule = Schedule
   , scheduleZoneLabel :: TZLabel
   }
 
+instance Show Schedule where
+  show Schedule{..} =
+    "Schedule {scheduleExpr = " <> show scheduleExpr <>
+    ", scheduleZoneLabel = " <> show scheduleZoneLabel <>
+    "}"
+
 -- | Construct a 'Schedule' from an existing 'CronExprT' and timezone label.
 --
 -- @tz@ ships with bindings for the entire IANA database through 'TZLabel'. The

@@ -1,7 +1,7 @@
 cabal-version:      3.0
 
 name:               aws-eventbridge-cron
-version:            0.1.2.0
+version:            0.1.2.1
 synopsis:           AWS EventBridge cron, rate, and one-time parser with scheduler
 description:
   Parse AWS EventBridge cron, rate, and one-time expressions and compute
